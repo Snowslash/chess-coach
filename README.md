@@ -1,4 +1,4 @@
-# Hermes Chess Coach
+# Chess Coach
 
 Small local chess-coaching CLI: **PGN games in → Stockfish/mock analysis JSON out → Markdown coaching report out**.
 
@@ -296,7 +296,3 @@ Expected: local env files, Stockfish binaries, Maia model weights/assets, genera
 This repository is licensed under **GPL-3.0-or-later**. See `LICENSE` and `docs/licensing.md`.
 
 Why GPL: this project directly depends on `python-chess`, which is GPL-3.0-or-later. Stockfish is GPL-3.0 and is invoked only as a user-installed local UCI engine; it is not vendored here. Maia 2 is MIT-licensed, but Maia model weights/assets remain local runtime artifacts and are not committed.
-
-## Hermes integration
-
-A core Hermes tool is unnecessary for this MVP. Use the project-local CLI/wrapper. If it becomes regular operational tooling, add a small Hermes skill pointing to this repository and `scripts/run_report.sh`.
