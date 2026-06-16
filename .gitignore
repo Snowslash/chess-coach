@@ -1,0 +1,43 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Local runtime configuration. Keep concrete engine/model paths out of git.
+.env
+.env.*
+!.env.example
+!.env.sample
+
+*.egg-info/
+dist/
+build/
+
+# Agent/local planning scratch should stay out of the repository.
+docs/plans/
+
+# Local longitudinal coaching state. Do not commit personal game history or derived memory.
+.coach/
+*.coach.json
+
+reports/*.json
+reports/*.md
+reports/**/*.json
+reports/**/*.md
+reports/annotated/*.pgn
+!reports/.gitkeep
+
+# Third-party engine/model artifacts are installed locally only.
+# Stockfish is GPL-3.0; Maia model weights/assets should not be vendored here.
+maia2_models/
+stockfish/
+engines/
+models/
+*.pt
+*.pth
+*.onnx
+*.bin
+# Local/imported game dumps can contain personal game history. Commit only deliberate fixtures.
+input/lichess_recent*.pgn
+input/lichess_pgn_*.pgn
+!input/sample_games.pgn
