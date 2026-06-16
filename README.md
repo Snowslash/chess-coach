@@ -4,6 +4,14 @@ Small local chess-coaching CLI: **PGN games in → Stockfish/mock analysis JSON 
 
 The scope is deliberately boring: no dashboard, no web app and no hosted service. It runs locally, writes local reports and keeps licensed runtime artifacts out of git.
 
+## Current state
+
+This public repository is a clean single-commit release of the local Chess Coach project. It includes:
+
+- v1 local longitudinal coaching workflow: import games, analyse, update local coach state, generate cards, training plans and weekly reviews.
+- v2 first slice: local annotated PGN export for reviewing Chess Coach comments on a board, for example by manually importing the PGN into a private/unlisted Lichess Study.
+- No Lichess token handling, no Lichess Study API integration and no hosted service yet.
+
 ## What it does
 
 - Parses PGN files.
@@ -12,9 +20,11 @@ The scope is deliberately boring: no dashboard, no web app and no hosted service
 - Uses Stockfish for tactical/evaluation signals when configured.
 - Falls back to mock analysis for pipeline tests if Stockfish is unavailable.
 - Optionally adds Maia 2 human-likeness context when Maia is installed and enabled.
+- Exports annotated PGN comments from existing analysis JSON for board-based review.
 - Writes:
   - Markdown report: human-readable coaching notes.
   - JSON report: structured per-game/per-move data.
+  - Annotated PGN: optional local review export.
 
 ## Requirements
 
