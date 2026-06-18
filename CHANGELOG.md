@@ -8,17 +8,18 @@ All notable changes to Chess Coach are documented here.
 
 - Local `export-annotated-pgn` CLI for converting existing analysis JSON into parseable annotated PGN.
 - `chess_coach.annotated_pgn` renderer that reconstructs legal move order with `python-chess` and attaches concise `Chess Coach:` comments to critical moments.
+- `chess_coach.lichess_study` stdlib Lichess Study client with token-from-env auth helpers, safe form POST handling, private/unlisted Study creation, and annotated PGN import into existing Studies.
+- `lichess-study-create` CLI command for explicit private/unlisted Study creation.
+- `lichess-study-import` CLI command for explicit annotated PGN import into an existing Study.
 - Ignore hygiene for generated annotated PGNs under `reports/annotated/*.pgn`.
 
 ### Documented
 
 - Local annotated PGN export example and privacy note that generated annotated PGNs stay local and ignored.
-- This slice requires no token and no network.
-- Lichess Study API create/import is planned later and not part of this slice.
-
-### Possible v2 direction
-
-- Next likely v2 step: add optional private/unlisted Lichess Study create/import commands after the local annotated PGN export has proven useful. A local GUI remains a later fallback if Study export is too constrained.
+- Lichess token setup with `study:write` only, kept in an ignored local env file such as `.env.stockfish`.
+- Explicit create/import workflow: export annotated PGN locally first, create a private Study, then import the PGN.
+- Private vs unlisted semantics, public support intentionally absent, and import appends chapters rather than editing original Lichess games.
+- No hosted service.
 
 ## [1.0.0] - 2026-06-06
 

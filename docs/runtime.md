@@ -116,9 +116,9 @@ Generated reports, review cards, training plans and imported personal PGNs are a
 
 Generated annotated PGNs from `export-annotated-pgn` are local ignored artifacts too. Write them under `reports/annotated/latest.pgn` or another path under `reports/annotated/`.
 
-## v2 local annotated PGN export
+## v2 annotated PGN export and explicit Lichess Study import
 
-The first v2 slice is still local-only. It does not need a token, does not make network calls and does not talk to the Lichess Study API yet.
+Keep the default workflow local-first:
 
 ```bash
 python -m chess_coach export-annotated-pgn \
@@ -130,7 +130,40 @@ python -m chess_coach export-annotated-pgn \
 
 This reads an existing analysis JSON bundle, reconstructs the moves with `python-chess`, and writes a parseable annotated PGN with concise `Chess Coach:` comments on critical moments.
 
-The Lichess Study API layer is planned later. It is not part of this slice.
+If you want to send that PGN to Lichess, create a dedicated OAuth token with only the `study:write` scope and keep it in an ignored local env file such as `.env.stockfish`.
+
+```bash
+export LICHESS_TOKEN=replace_me_with_a_local_token
+```
+
+Create the Study explicitly:
+
+```bash
+python -m chess_coach lichess-study-create \
+  --name "Chess Coach Review 2026-06-17" \
+  --visibility private \
+  --token-env LICHESS_TOKEN
+```
+
+Then import the already-exported annotated PGN into that Study:
+
+```bash
+python -m chess_coach lichess-study-import \
+  --study-id abc123 \
+  --pgn reports/annotated/latest.pgn \
+  --orientation white \
+  --token-env LICHESS_TOKEN
+```
+
+Semantics and boundaries:
+
+- `private` = only you can access the Study.
+- `unlisted` = anyone with the link can access the Study.
+- public support intentionally absent.
+- Import appends Study chapters; it does not edit original Lichess games or existing Study chapters.
+- Generated annotated PGNs from `export-annotated-pgn` are local ignored artifacts too. Write them under `reports/annotated/latest.pgn` or another path under `reports/annotated/`.
+- No hosted service.
+- No dashboard.
 
 ## Runtime boundary
 

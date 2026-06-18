@@ -9,8 +9,9 @@ The scope is deliberately boring: no dashboard, no web app and no hosted service
 This public repository is a clean single-commit release of the local Chess Coach project. It includes:
 
 - v1 local longitudinal coaching workflow: import games, analyse, update local coach state, generate cards, training plans and weekly reviews.
-- v2 first slice: local annotated PGN export for reviewing Chess Coach comments on a board, for example by manually importing the PGN into a private/unlisted Lichess Study.
-- No Lichess token handling, no Lichess Study API integration and no hosted service yet.
+- v2 local annotated PGN export for reviewing Chess Coach comments on a board.
+- Explicit, token-gated Lichess Study helpers: create a private or unlisted Study, then import an existing annotated PGN as appended Study chapters.
+- No dashboard, no web app and no hosted service.
 
 ## What it does
 
@@ -244,9 +245,9 @@ Generated reports are ignored by default.
 
 Longitudinal coach state also stays local-only under `.coach/`. Treat `.coach/` as ignored local coaching state: it is for personal history and derived memory, not for git.
 
-## v2 local annotated PGN export
+## v2 annotated PGN export and explicit Lichess Study import
 
-The first v2 slice stays local-only and privacy-preserving.
+The safe default path is still local-first:
 
 ```bash
 python -m chess_coach export-annotated-pgn \
@@ -256,21 +257,60 @@ python -m chess_coach export-annotated-pgn \
   --critical-only
 ```
 
-What this slice does:
+What this local export does:
 
 - Reads existing Chess Coach analysis JSON.
 - Reconstructs legal move order with `python-chess`.
 - Writes a parseable annotated PGN with concise `Chess Coach:` comments on critical moments.
 - Keeps generated annotated PGNs local and ignored by git under `reports/annotated/*.pgn`.
 
-What this slice does not do:
+If you want a Lichess Study, create a dedicated OAuth token with only the `study:write` scope, keep it in an ignored local env file such as `.env.stockfish`, and run the networked commands explicitly.
 
-- no token required.
-- no network required.
-- No Lichess API calls.
-- No Lichess Study creation/import yet.
+Example local env snippet:
 
-The Lichess Study API layer is planned later, after the local annotated PGN flow is proven useful.
+```bash
+export LICHESS_TOKEN=replace_me_with_a_local_token
+```
+
+Create the Study first. Default visibility is `private`; `unlisted` is also supported. Public support intentionally absent.
+
+```bash
+python -m chess_coach lichess-study-create \
+  --name "Chess Coach Review 2026-06-17" \
+  --visibility private \
+  --token-env LICHESS_TOKEN
+```
+
+Then import the already-exported annotated PGN:
+
+```bash
+python -m chess_coach lichess-study-import \
+  --study-id abc123 \
+  --pgn reports/annotated/latest.pgn \
+  --orientation white \
+  --token-env LICHESS_TOKEN
+```
+
+Lichess privacy semantics in this slice:
+
+- `private`: only you can access the Study.
+- `unlisted`: anyone with the link can access it.
+- public support intentionally absent.
+
+Import semantics in this slice:
+
+- `lichess-study-import` appends new Study chapters; it does not edit original Lichess games or old Study chapters.
+- Multi-game PGN import can create multiple chapters, up to the Lichess 64-chapter Study limit.
+- Existing local export remains the default safe path.
+
+Runtime/privacy boundary:
+
+- no hosted service.
+- no dashboard.
+- still local-only until you explicitly run the token-gated Study commands.
+- `.env.stockfish`, `.coach/state.json`, imported PGNs and generated reports stay ignored local artifacts.
+- No live Lichess API smoke is part of the normal test flow here.
+- Anything broader, such as public Study support or a hosted layer, is planned later.
 
 ## Tests
 

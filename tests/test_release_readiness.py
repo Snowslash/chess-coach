@@ -28,11 +28,20 @@ def test_readme_walks_new_user_through_dependencies_setup_import_and_run():
         "scripts/run_weekly_review.sh",
         "export-annotated-pgn",
         "reports/annotated/latest.pgn",
+        "lichess-study-create",
+        "lichess-study-import",
+        "LICHESS_TOKEN",
+        "study:write",
+        "private",
+        "unlisted",
+        "public support intentionally absent",
+        "append",
+        "does not edit original Lichess games",
+        ".env.stockfish",
         "planned later",
-        "no token",
-        "no network",
         "no dashboard",
         "local-only",
+        "no hosted service",
     ]
     for phrase in required_phrases:
         assert phrase in readme
@@ -79,6 +88,9 @@ def test_github_hygiene_docs_explain_local_artifacts_and_licensing():
         "reports/cards/latest_cards.md",
         "reports/cards/latest_cards.json",
         "reports/annotated/latest.pgn",
+        ".env.stockfish",
+        ".coach/state.json",
+        "input/lichess_recent_your_lichess_username.pgn",
     ]:
         result = subprocess.run(
             ["git", "check-ignore", path],
@@ -109,11 +121,19 @@ def test_github_hygiene_docs_explain_local_artifacts_and_licensing():
         "scripts/run_weekly_review.sh",
         "export-annotated-pgn",
         "reports/annotated/latest.pgn",
+        "lichess-study-create",
+        "lichess-study-import",
+        "LICHESS_TOKEN",
+        "study:write",
+        "private",
+        "unlisted",
+        "public support intentionally absent",
+        "append",
+        "does not edit original Lichess games",
+        ".env.stockfish",
         "annotated PGN",
         "local-only",
-        "planned later",
-        "no token",
-        "no network",
+        "no hosted service",
     ]:
         assert phrase in readme or phrase in runtime
     assert "no dashboard" in readme.lower() or "no dashboard" in runtime.lower()

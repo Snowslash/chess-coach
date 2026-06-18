@@ -7,6 +7,7 @@ from pathlib import Path
 from .annotated_pgn import count_games_to_export, render_annotated_pgn
 from .flashcards import cards_from_bundle, write_cards_markdown
 from .lichess_import import fetch_recent_games
+from .lichess_study import LichessStudyError, create_study, import_pgn_to_study, token_from_env
 from .models import AnalysisBundle
 from .pipeline import analyse_pgn
 from .report_writer import default_json_path
@@ -66,6 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
     training = sub.add_parser("training-plan", help="Generate measurable training plan from report JSON")
     training.add_argument("--from", dest="from_json", required=True)
     training.add_argument("--out", default="reports/training_plan.md")
+    study_create = sub.add_parser("lichess-study-create", help="Create a private or unlisted Lichess Study")
+    study_create.add_argument("--name", required=True, help="Study name")
+    study_create.add_argument("--visibility", choices=("private", "unlisted"), default="private")
+    study_create.add_argument("--token-env", default="LICHESS_TOKEN", help="Environment variable holding the Lichess OAuth token")
+    study_import = sub.add_parser("lichess-study-import", help="Import annotated PGN into an existing Lichess Study")
+    study_import.add_argument("--study-id", required=True, help="Target Lichess Study ID")
+    study_import.add_argument("--pgn", required=True, help="Annotated PGN file to import")
+    study_import.add_argument("--name", default=None, help="Optional chapter name for single-game PGN imports")
+    study_import.add_argument("--orientation", choices=("white", "black"), default="white")
+    study_import.add_argument("--variant", default=None)
+    study_import.add_argument("--mode", choices=("practice", "conceal", "gamebook"), default=None)
+    study_import.add_argument("--token-env", default="LICHESS_TOKEN", help="Environment variable holding the Lichess OAuth token")
     return parser
 
 
@@ -170,6 +183,41 @@ def main(argv: list[str] | None = None) -> int:
         plan = build_training_plan(bundle, cards)
         out = write_training_plan_markdown(plan, args.out)
         print(f"Generated training plan: {out}")
+        return 0
+    if args.command == "lichess-study-create":
+        try:
+            token = token_from_env(args.token_env)
+            study = create_study(token=token, name=args.name, visibility=args.visibility)
+        except (LichessStudyError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"Study ID: {study.id}")
+        print(f"Study URL: {study.url}")
+        return 0
+    if args.command == "lichess-study-import":
+        pgn_path = Path(args.pgn)
+        if not pgn_path.exists():
+            print(f"PGN not found: {pgn_path}", file=sys.stderr)
+            return 2
+        try:
+            token = token_from_env(args.token_env)
+            result = import_pgn_to_study(
+                token=token,
+                study_id=args.study_id,
+                pgn=pgn_path.read_text(encoding="utf-8"),
+                name=args.name,
+                orientation=args.orientation,
+                variant=args.variant,
+                mode=args.mode,
+            )
+        except (LichessStudyError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"Study URL: {result.study_url}")
+        print(f"Chapters imported: {len(result.chapters)}")
+        for chapter in result.chapters:
+            print(f"Chapter: {chapter.name}")
+            print(f"Chapter URL: {chapter.url}")
         return 0
     return 2
 

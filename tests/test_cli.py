@@ -2,9 +2,11 @@ from datetime import datetime
 from pathlib import Path
 
 import chess.pgn
+import pytest
 
 from chess_coach import cli
 from chess_coach.history import CoachState, RunHistoryEntry
+from chess_coach.lichess_study import LichessApiError, LichessAuthError, StudyChapterRef, StudyImportResult, StudyRef
 from chess_coach.models import AnalysisBundle, CriticalMoment, GameAnalysis, MoveAnalysis, PatternSummary
 
 
@@ -365,3 +367,187 @@ def test_training_plan_cli_writes_markdown_from_report_json(tmp_path: Path):
     assert result == 0
     assert out_path.exists()
     assert "Training Plan" in out_path.read_text(encoding="utf-8")
+
+
+def test_lichess_study_create_missing_token_returns_2_and_skips_create(monkeypatch, capsys):
+    called = False
+
+    def fake_create_study(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("create_study should not be called without a token")
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": (_ for _ in ()).throw(LichessAuthError("Missing Lichess token env var: LICHESS_TOKEN")))
+    monkeypatch.setattr(cli, "create_study", fake_create_study)
+
+    code = cli.main(["lichess-study-create", "--name", "Chess Coach Review 2026-06-17"])
+
+    assert code == 2
+    assert called is False
+    assert "Missing Lichess token env var: LICHESS_TOKEN" in capsys.readouterr().err
+
+
+def test_lichess_study_create_calls_create_study_and_prints_result(monkeypatch, capsys):
+    calls = []
+
+    def fake_create_study(**kwargs):
+        calls.append(kwargs)
+        return StudyRef(id="abc123", url="https://lichess.org/study/abc123")
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": "secret-token")
+    monkeypatch.setattr(cli, "create_study", fake_create_study)
+
+    code = cli.main(
+        [
+            "lichess-study-create",
+            "--name",
+            "Chess Coach Review 2026-06-17",
+            "--visibility",
+            "unlisted",
+            "--token-env",
+            "LICHESS_TOKEN",
+        ]
+    )
+
+    assert code == 0
+    assert calls == [
+        {
+            "token": "secret-token",
+            "name": "Chess Coach Review 2026-06-17",
+            "visibility": "unlisted",
+        }
+    ]
+    stdout = capsys.readouterr().out
+    assert "Study ID: abc123" in stdout
+    assert "Study URL: https://lichess.org/study/abc123" in stdout
+
+
+def test_lichess_study_create_rejects_public_visibility():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["lichess-study-create", "--name", "Chess Coach Review", "--visibility", "public"])
+
+    assert excinfo.value.code == 2
+
+
+def test_lichess_study_import_requires_pgn_argument():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["lichess-study-import", "--study-id", "abc123"])
+
+    assert excinfo.value.code == 2
+
+
+def test_lichess_study_import_missing_token_returns_2_and_skips_import(monkeypatch, tmp_path: Path, capsys):
+    pgn_path = tmp_path / "annotated.pgn"
+    pgn_path.write_text('[Event "Game"]\n\n1. e4 e5 *\n', encoding="utf-8")
+    called = False
+
+    def fake_import_pgn_to_study(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("import_pgn_to_study should not be called without a token")
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": (_ for _ in ()).throw(LichessAuthError("Missing Lichess token env var: LICHESS_TOKEN")))
+    monkeypatch.setattr(cli, "import_pgn_to_study", fake_import_pgn_to_study)
+
+    code = cli.main(["lichess-study-import", "--study-id", "abc123", "--pgn", str(pgn_path)])
+
+    assert code == 2
+    assert called is False
+    assert "Missing Lichess token env var: LICHESS_TOKEN" in capsys.readouterr().err
+
+
+def test_lichess_study_import_reads_pgn_calls_import_and_prints_links(monkeypatch, tmp_path: Path, capsys):
+    pgn_path = tmp_path / "annotated.pgn"
+    pgn_text = '[Event "Game"]\n\n1. e4 e5 *\n'
+    pgn_path.write_text(pgn_text, encoding="utf-8")
+    calls = []
+
+    def fake_import_pgn_to_study(**kwargs):
+        calls.append(kwargs)
+        return StudyImportResult(
+            study_id="abc123",
+            study_url="https://lichess.org/study/abc123",
+            chapters=[
+                StudyChapterRef(
+                    id="chap1",
+                    name="Game 1",
+                    url="https://lichess.org/study/abc123/chap1",
+                    status="1-0",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": "secret-token")
+    monkeypatch.setattr(cli, "import_pgn_to_study", fake_import_pgn_to_study)
+
+    code = cli.main(
+        [
+            "lichess-study-import",
+            "--study-id",
+            "abc123",
+            "--pgn",
+            str(pgn_path),
+            "--name",
+            "Chapter Name",
+            "--orientation",
+            "black",
+            "--variant",
+            "standard",
+            "--mode",
+            "practice",
+            "--token-env",
+            "LICHESS_TOKEN",
+        ]
+    )
+
+    assert code == 0
+    assert calls == [
+        {
+            "token": "secret-token",
+            "study_id": "abc123",
+            "pgn": pgn_text,
+            "name": "Chapter Name",
+            "orientation": "black",
+            "variant": "standard",
+            "mode": "practice",
+        }
+    ]
+    stdout = capsys.readouterr().out
+    assert "Study URL: https://lichess.org/study/abc123" in stdout
+    assert "Chapter: Game 1" in stdout
+    assert "Chapter URL: https://lichess.org/study/abc123/chap1" in stdout
+
+
+def test_lichess_study_import_missing_pgn_file_returns_2(monkeypatch, tmp_path: Path, capsys):
+    missing = tmp_path / "missing.pgn"
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": "secret-token")
+    monkeypatch.setattr(cli, "import_pgn_to_study", lambda **kwargs: (_ for _ in ()).throw(AssertionError("should not import when PGN file is missing")))
+
+    code = cli.main(["lichess-study-import", "--study-id", "abc123", "--pgn", str(missing)])
+
+    assert code == 2
+    assert f"PGN not found: {missing}" in capsys.readouterr().err
+
+
+def test_lichess_study_create_api_error_returns_2_without_traceback(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": "secret-token")
+    monkeypatch.setattr(cli, "create_study", lambda **kwargs: (_ for _ in ()).throw(LichessApiError("Lichess API error 400: bad request")))
+
+    code = cli.main(["lichess-study-create", "--name", "Chess Coach Review"])
+
+    assert code == 2
+    assert "Lichess API error 400: bad request" in capsys.readouterr().err
+
+
+def test_lichess_study_import_api_error_returns_2_without_traceback(monkeypatch, tmp_path: Path, capsys):
+    pgn_path = tmp_path / "annotated.pgn"
+    pgn_path.write_text('[Event "Game"]\n\n1. e4 e5 *\n', encoding="utf-8")
+
+    monkeypatch.setattr(cli, "token_from_env", lambda name="LICHESS_TOKEN": "secret-token")
+    monkeypatch.setattr(cli, "import_pgn_to_study", lambda **kwargs: (_ for _ in ()).throw(LichessApiError("Lichess rate limit hit: slow down")))
+
+    code = cli.main(["lichess-study-import", "--study-id", "abc123", "--pgn", str(pgn_path)])
+
+    assert code == 2
+    assert "Lichess rate limit hit: slow down" in capsys.readouterr().err
