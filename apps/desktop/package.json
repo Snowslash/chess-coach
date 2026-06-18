@@ -1,0 +1,15 @@
+{
+  "name": "chess-coach-desktop",
+  "version": "1.0.0",
+  "description": "Local-first Electron desktop GUI for Chess Coach",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ./src/main.js",
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build-check.js"
+  },
+  "devDependencies": {
+    "electron": "^41.7.1"
+  }
+}

@@ -1,41 +1,72 @@
 # Chess Coach
 
-Small local chess-coaching CLI: **PGN games in → Stockfish/mock analysis JSON out → Markdown coaching report out**.
+Local-first chess analysis tool: PGN games in, Stockfish and optional Maia 2 context locally, Markdown/JSON/annotated PGN out.
 
-The scope is deliberately boring: no dashboard, no web app and no hosted service. It runs locally, writes local reports and keeps licensed runtime artifacts out of git.
+Chess Coach now has two local interfaces:
+
+- CLI: still supported for technical users and scripting.
+- Electron desktop GUI: for non-technical users who should not need the terminal or direct config-file editing.
+
+There is still no hosted service, no analytics, and no data sent to Sangeev. Lichess requests go only to https://lichess.org when you explicitly ask for them. There is no dashboard or hosted web surface here; the GUI is a local desktop shell.
 
 ## Current state
 
-This public repository is a clean single-commit release of the local Chess Coach project. It includes:
+This public repository includes:
 
-- v1 local longitudinal coaching workflow: import games, analyse, update local coach state, generate cards, training plans and weekly reviews.
-- v2 local annotated PGN export for reviewing Chess Coach comments on a board.
-- Explicit, token-gated Lichess Study helpers: create a private or unlisted Study, then import an existing annotated PGN as appended Study chapters.
-- No dashboard, no web app and no hosted service.
+- Local CLI analysis pipeline.
+- Local annotated PGN export.
+- Explicit token-gated Lichess Study helpers.
+- Local Electron desktop GUI under `apps/desktop/`.
+- Shared local config file: `.env.stockfish`.
+
+The desktop GUI does not upload a Study automatically in this slice. The safe path is still: import public games, analyse locally, export annotated PGN, then review the PGN before importing it into Lichess yourself. Automatic Study upload is planned later, but not in this local-only desktop slice.
 
 ## What it does
 
 - Parses PGN files.
 - Identifies the colour played by the target player.
-- Analyses only that player's moves when the player is known.
+- Analyses that player’s moves when the player is known.
 - Uses Stockfish for tactical/evaluation signals when configured.
-- Falls back to mock analysis for pipeline tests if Stockfish is unavailable.
+- Falls back to mock analysis for pipeline smoke tests if Stockfish is unavailable.
 - Optionally adds Maia 2 human-likeness context when Maia is installed and enabled.
+- Imports public Lichess games by username.
 - Exports annotated PGN comments from existing analysis JSON for board-based review.
-- Writes:
-  - Markdown report: human-readable coaching notes.
-  - JSON report: structured per-game/per-move data.
-  - Annotated PGN: optional local review export.
+- Writes local Markdown reports, local JSON bundles, and local annotated PGNs.
 
 ## Requirements
 
 - Python 3.11+
-- `python-chess` via this package's Python dependency list — this is the Python library, **not the PyChess GUI**.
-- `pydantic` via this package's Python dependency list.
-- Optional: Stockfish local binary for real engine analysis.
-- Optional: Maia 2 Python package/runtime for human-likeness move probabilities.
+- `python-chess` from this package’s dependencies — this is the Python library, not the PyChess GUI.
+- `pydantic`
+- Optional: local Stockfish binary
+- Optional: local Maia 2 runtime
+- Optional for the desktop GUI: Node.js 20+ and npm
 
-## Quick start
+## Shared configuration
+
+Both CLI and desktop GUI read and write the same local file:
+
+```text
+.env.stockfish
+```
+
+That file is ignored by git. Environment variables still override file values in Python exactly as before.
+
+Key values exposed in the GUI:
+
+- `CHESS_COACH_PLAYER`
+- `LICHESS_TOKEN`
+- `CHESS_COACH_PGN`
+- `CHESS_COACH_OUT`
+- `STOCKFISH_PATH`
+- `STOCKFISH_DEPTH`
+- `STOCKFISH_TIME_LIMIT`
+- `MAIA2_ENABLED`
+- `MAIA2_GAME_TYPE`
+- `MAIA2_DEVICE`
+- `MAIA2_TARGET_ELO`
+
+## Quick start: Python runtime
 
 From the project root:
 
@@ -47,13 +78,13 @@ python -m pip install -e '.[dev,maia2]'
 python -m pytest -q
 ```
 
-On WSL with a Windows-mounted project folder, prefer the helper below instead of creating `.venv` inside the project. Windows-mounted virtualenvs can produce `Permission denied` or externally-managed-environment weirdness.
+On WSL with a Windows-mounted project folder, prefer:
 
 ```bash
 bash scripts/setup_wsl.sh
 ```
 
-That creates/reuses a WSL-native venv at:
+That creates or reuses a WSL-native venv at:
 
 ```text
 $HOME/.venvs/chess-coach
@@ -61,9 +92,9 @@ $HOME/.venvs/chess-coach
 
 ## Install Stockfish
 
-Stockfish is the tactical evaluator. It is GPL-3.0 and is **not vendored** in this repository.
+Stockfish is the tactical evaluator. It is GPL-3.0 and is not vendored in this repository.
 
-Linux/WSL:
+Linux / WSL:
 
 ```bash
 sudo apt update
@@ -80,144 +111,179 @@ which stockfish
 
 Windows:
 
-- Install Stockfish from https://stockfishchess.org/download/
-- Note the full path to `stockfish.exe`.
-- If running through WSL, either install Stockfish inside WSL or use a WSL-visible path to the Windows binary.
+- Download from https://stockfishchess.org/download/
+- Note the full path to `stockfish.exe`
+- If you run the CLI through WSL, either install Stockfish inside WSL or use a WSL-visible path to the Windows binary
 
 ## Configure local runtime
 
-Copy the example env file and edit it for your machine:
+Copy the example config file:
 
 ```bash
 cp .env.example .env.stockfish
 ```
 
-Example values:
+Typical values:
 
 ```bash
 export STOCKFISH_PATH=/usr/games/stockfish
 export STOCKFISH_DEPTH=12
 export STOCKFISH_TIME_LIMIT=0.1
-export MAIA2_ENABLED=true
-export MAIA2_GAME_TYPE=rapid
-export MAIA2_DEVICE=cpu
-export MAIA2_TARGET_ELO=1500
 export CHESS_COACH_PLAYER=your_lichess_username
-```
-
-`.env.stockfish` is intentionally ignored by git. Do not commit machine-specific paths, usernames if you prefer not to publish them, Stockfish binaries, Maia model weights or generated reports.
-
-## Install / enable Maia 2
-
-Maia 2 is optional. It does not replace Stockfish.
-
-- Stockfish = tactical truth: eval changes, blunders, missed wins, best moves.
-- Maia 2 = human-likeness context: how likely a move is for players around a target Elo.
-
-Install the optional dependency group:
-
-```bash
-python -m pip install -e '.[maia2]'
-```
-
-Enable it in `.env.stockfish`:
-
-```bash
+export CHESS_COACH_PGN=input/lichess_recent_your_lichess_username.pgn
+export CHESS_COACH_OUT=reports/lichess_recent.md
 export MAIA2_ENABLED=true
 export MAIA2_GAME_TYPE=rapid
 export MAIA2_DEVICE=cpu
 export MAIA2_TARGET_ELO=1500
 ```
 
-The code uses the Maia 2 Python package runtime. The runtime may download/use model weights. Keep any Maia model weights/assets local and out of git. If Maia is enabled but unavailable, the report remains a valid Stockfish report and includes `maia2_reason` in the JSON/summary explaining what is missing.
+Optional token note:
 
-## Import games from Lichess
+- `LICHESS_TOKEN` is optional for public username imports.
+- A token may help with rate limits or later private/token-gated Lichess actions.
+- The desktop GUI only sends it to `lichess.org`.
+- Keep it local and out of git.
 
-For public Lichess games:
+## Desktop GUI
+
+The desktop app is under `apps/desktop/` and uses Electron as a local shell around the existing Python engine.
+
+What the GUI does in this slice:
+
+- Read and write `.env.stockfish`
+- Inline validation
+- Test Stockfish and Maia readiness
+- Test Lichess username/token access
+- Import public Lichess games by username
+- Run local analysis
+- Export annotated PGN
+- Export/import settings
+- Create a local diagnostic bundle
+
+What it deliberately does not do yet:
+
+- automatic Study creation/import as part of the main GUI workflow
+- any hosted backend
+- any telemetry
+
+Run it locally:
+
+```bash
+cd apps/desktop
+npm install
+npm run start
+```
+
+Desktop privacy boundary copy:
+
+- Runs locally.
+- Your Lichess token is only sent to lichess.org.
+- Generated reports and PGNs stay on this machine.
+- Review the PGN before importing it into Lichess.
+
+## CLI workflow
+
+### Import public Lichess games
 
 ```bash
 python -m chess_coach import-lichess --user your_lichess_username --max 20 --out input/lichess_recent_your_lichess_username.pgn
 ```
 
-For a narrower recent-game pull:
+With recent-game filters:
 
 ```bash
 python -m chess_coach import-lichess --user your_lichess_username --max 20 --perf rapid --rated-only --since-days 14 --out input/lichess_recent_your_lichess_username.pgn
 ```
 
-Then analyse them:
+### Analyse games
+
+```bash
+python -m chess_coach analyse --pgn input/lichess_recent_your_lichess_username.pgn --out reports/lichess_recent.md --player your_lichess_username --update-state
+```
+
+Equivalent wrapped form:
 
 ```bash
 python -m chess_coach analyse \
   --pgn input/lichess_recent_your_lichess_username.pgn \
   --out reports/lichess_recent.md \
-  --player your_lichess_username
+  --player your_lichess_username \
+  --update-state
 ```
 
-Imported personal PGN dumps under `input/lichess_recent*.pgn` and `input/lichess_pgn_*.pgn` are ignored by git. Commit only deliberate sample fixtures.
-
-## v1 longitudinal workflow
-
-This v1 flow stays local-only and CLI-first: no dashboard, no web app, and no hosted service.
-
-1. Import recent games.
-2. Analyse and update local coach state.
-3. Generate review cards.
-4. Generate measurable training plan.
-5. Generate weekly review.
-
-Example commands:
+### Export annotated PGN
 
 ```bash
-python -m chess_coach import-lichess --user your_lichess_username --max 20 --perf rapid --rated-only --since-days 14 --out input/lichess_recent_your_lichess_username.pgn
-python -m chess_coach analyse --pgn input/lichess_recent_your_lichess_username.pgn --out reports/lichess_recent_maia2.md --player your_lichess_username --update-state
-python -m chess_coach cards --from reports/lichess_recent_maia2.json --out reports/cards/lichess_recent_cards.md
-python -m chess_coach training-plan --from reports/lichess_recent_maia2.json --out reports/training_plan.md
-python -m chess_coach weekly-review --out reports/weekly_review.md
-bash scripts/run_weekly_review.sh
+python -m chess_coach export-annotated-pgn \
+  --from reports/lichess_recent.json \
+  --out reports/annotated/lichess_recent.pgn \
+  --max-games 10 \
+  --critical-only
 ```
 
-Privacy/runtime boundary:
-
-- `.coach/` and `.coach/state.json` are ignored local coaching state.
-- Generated reports, review cards, training plans and imported personal PGNs are ignored by git.
-- Stockfish remains the tactical truth layer.
-- Maia 2 remains optional human-likeness annotation.
-- If Maia 2 is unavailable, the Stockfish/mock workflow should still be understandable.
-
-## Normal repeated use
-
-After setup, use the stable wrapper:
+### Repeated local run
 
 ```bash
 bash scripts/run_report.sh
 ```
 
-Defaults can be supplied through `.env.stockfish`:
+The script prints a compact summary including `stockfish_available`, `maia2_enabled`, `maia2_available`, and `maia2_reason`.
+
+## v1 longitudinal workflow
 
 ```bash
-export CHESS_COACH_PGN=input/lichess_recent_your_lichess_username.pgn
-export CHESS_COACH_OUT=reports/lichess_recent_maia2.md
-export CHESS_COACH_PLAYER=your_lichess_username
+python -m chess_coach cards --from reports/lichess_recent.json --out reports/cards/lichess_recent_cards.md
+python -m chess_coach training-plan --from reports/lichess_recent.json --out reports/training_plan.md
+python -m chess_coach weekly-review --out reports/weekly_review.md
+bash scripts/run_weekly_review.sh
 ```
 
-Or pass them directly:
+## Lichess Study helpers
+
+These remain explicit CLI actions, not part of the main GUI loop.
+
+Create a dedicated OAuth token with only the `study:write` scope, keep it in `.env.stockfish`, and run the commands explicitly.
 
 ```bash
-bash scripts/run_report.sh input/my_games.pgn reports/my_report.md your_lichess_username
+export LICHESS_TOKEN=replace_me_with_a_local_token
 ```
 
-The wrapper prints a post-run summary including engine, `stockfish_available`, `maia2_enabled`, `maia2_available`, `maia2_reason` and top priority.
-
-## Mock/smoke run
-
-If you only want to verify the pipeline without Stockfish:
+Create Study:
 
 ```bash
-python -m chess_coach analyse --pgn input/sample_games.pgn --out reports/latest.md --mock
+python -m chess_coach lichess-study-create \
+  --name "Chess Coach Review 2026-06-18" \
+  --visibility private \
+  --token-env LICHESS_TOKEN
 ```
 
-Do not draw chess conclusions from mock-only output.
+Import annotated PGN into that Study:
+
+```bash
+python -m chess_coach lichess-study-import \
+  --study-id abc123 \
+  --pgn reports/annotated/lichess_recent.pgn \
+  --orientation white \
+  --token-env LICHESS_TOKEN
+```
+
+Semantics:
+
+- `private` and `unlisted` are supported
+- public support intentionally absent
+- import appends chapters
+- it does not edit original Lichess games
+- it does not auto-publish anything
+
+## Privacy and local boundary
+
+- No analytics
+- No telemetry
+- No hosted service
+- No data sent to Sangeev
+- Imported personal PGNs, generated reports, `.coach/state.json`, and other ignored local coaching state stay local ignored artifacts
+- Stockfish binaries and Maia model weights remain local runtime dependencies and are not vendored here
 
 ## Outputs
 
@@ -226,96 +292,29 @@ Typical outputs:
 ```text
 reports/latest.md
 reports/latest.json
-reports/lichess_recent.md
-reports/lichess_recent.json
+reports/annotated/latest.pgn
+reports/cards/lichess_recent_cards.md
+reports/training_plan.md
+reports/weekly_review.md
 ```
 
-Reports include:
-
-- executive diagnosis;
-- recurring weaknesses;
-- important mistakes;
-- opening/middlegame/endgame notes;
-- 7-day plan adapted from the report's dominant phase, colour and error class;
-- critical positions with FENs and Lichess analysis URLs;
-- uncertainty notes;
-- raw file pointers.
-
-Generated reports are ignored by default.
-
-Longitudinal coach state also stays local-only under `.coach/`. Treat `.coach/` as ignored local coaching state: it is for personal history and derived memory, not for git.
-
-## v2 annotated PGN export and explicit Lichess Study import
-
-The safe default path is still local-first:
-
-```bash
-python -m chess_coach export-annotated-pgn \
-  --from reports/latest.json \
-  --out reports/annotated/latest.pgn \
-  --max-games 10 \
-  --critical-only
-```
-
-What this local export does:
-
-- Reads existing Chess Coach analysis JSON.
-- Reconstructs legal move order with `python-chess`.
-- Writes a parseable annotated PGN with concise `Chess Coach:` comments on critical moments.
-- Keeps generated annotated PGNs local and ignored by git under `reports/annotated/*.pgn`.
-
-If you want a Lichess Study, create a dedicated OAuth token with only the `study:write` scope, keep it in an ignored local env file such as `.env.stockfish`, and run the networked commands explicitly.
-
-Example local env snippet:
-
-```bash
-export LICHESS_TOKEN=replace_me_with_a_local_token
-```
-
-Create the Study first. Default visibility is `private`; `unlisted` is also supported. Public support intentionally absent.
-
-```bash
-python -m chess_coach lichess-study-create \
-  --name "Chess Coach Review 2026-06-17" \
-  --visibility private \
-  --token-env LICHESS_TOKEN
-```
-
-Then import the already-exported annotated PGN:
-
-```bash
-python -m chess_coach lichess-study-import \
-  --study-id abc123 \
-  --pgn reports/annotated/latest.pgn \
-  --orientation white \
-  --token-env LICHESS_TOKEN
-```
-
-Lichess privacy semantics in this slice:
-
-- `private`: only you can access the Study.
-- `unlisted`: anyone with the link can access it.
-- public support intentionally absent.
-
-Import semantics in this slice:
-
-- `lichess-study-import` appends new Study chapters; it does not edit original Lichess games or old Study chapters.
-- Multi-game PGN import can create multiple chapters, up to the Lichess 64-chapter Study limit.
-- Existing local export remains the default safe path.
-
-Runtime/privacy boundary:
-
-- no hosted service.
-- no dashboard.
-- still local-only until you explicitly run the token-gated Study commands.
-- `.env.stockfish`, `.coach/state.json`, imported PGNs and generated reports stay ignored local artifacts.
-- No live Lichess API smoke is part of the normal test flow here.
-- Anything broader, such as public Study support or a hosted layer, is planned later.
+Generated reports and PGNs are ignored by default.
 
 ## Tests
 
+Python:
+
 ```bash
-python -m pytest -q
+uv run --with pytest --with python-chess --with pydantic python -m pytest -q
+```
+
+Desktop app:
+
+```bash
+cd apps/desktop
+npm install
+npm test
+npm run build
 ```
 
 ## GitHub / release hygiene
@@ -324,15 +323,15 @@ Before publishing:
 
 ```bash
 git status --ignored
-git check-ignore -v .env.stockfish maia2_models/rapid_model.pt reports/lichess_recent_maia2.json input/lichess_recent_your_lichess_username.pgn
+git check-ignore -v .env.stockfish maia2_models/rapid_model.pt reports/lichess_recent.json input/lichess_recent_your_lichess_username.pgn apps/desktop/node_modules
 git add --dry-run .
-python -m pytest -q
+uv run --with pytest --with python-chess --with pydantic python -m pytest -q
 ```
 
-Expected: local env files, Stockfish binaries, Maia model weights/assets, generated reports, virtualenvs, egg-info, pycache and imported personal PGNs are not staged.
+Expected: local env files, engine/model artifacts, imported PGNs, generated reports, local coaching state, and Electron dependencies are not staged.
 
 ## Licence
 
-This repository is licensed under **GPL-3.0-or-later**. See `LICENSE` and `docs/licensing.md`.
+This repository is licensed under GPL-3.0-or-later. See `LICENSE` and `docs/licensing.md`.
 
 Why GPL: this project directly depends on `python-chess`, which is GPL-3.0-or-later. Stockfish is GPL-3.0 and is invoked only as a user-installed local UCI engine; it is not vendored here. Maia 2 is MIT-licensed, but Maia model weights/assets remain local runtime artifacts and are not committed.

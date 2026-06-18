@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess Coach</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Chess Coach</h1>
+        <p class="eyebrow">Analyse my games</p>
+      </div>
+      <div class="topbar-meta">
+        <div id="configPath" class="meta-chip"></div>
+        <div class="meta-chip">Runs locally.</div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel rail">
+        <section>
+          <h2>Setup and status</h2>
+          <p class="muted">No analytics. No hosted backend. Generated reports and PGNs stay on this machine.</p>
+          <div id="firstRunNotice" class="notice warning hidden"></div>
+          <div class="stack gap-sm">
+            <button id="createDefaultsButton" class="secondary">Create config from defaults</button>
+            <button id="saveConfigButton" class="primary">Save settings</button>
+            <button id="resetDefaultsButton" class="secondary">Reset to defaults</button>
+            <button id="exportSettingsButton" class="secondary">Export settings</button>
+            <button id="importSettingsButton" class="secondary">Import settings</button>
+            <button id="diagnosticBundleButton" class="secondary">Create diagnostic bundle</button>
+          </div>
+        </section>
+
+        <section>
+          <h3>Readiness</h3>
+          <div class="stack gap-sm">
+            <button id="testReadinessButton" class="secondary">Test Stockfish and Maia</button>
+            <button id="testLichessButton" class="secondary">Test Lichess</button>
+          </div>
+          <div id="statusCards" class="status-cards"></div>
+        </section>
+
+        <section>
+          <h3>Links</h3>
+          <div class="stack gap-sm links">
+            <button data-link="https://stockfishchess.org/download/" class="link-button">Stockfish download</button>
+            <button data-link="https://lichess.org/account/oauth/token/create?description=Chess%20Coach" class="link-button">Lichess token page</button>
+            <button data-link="https://lichess.org/study" class="link-button">Lichess Study page</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="panel form-panel">
+        <div class="section-header">
+          <h2>Game source and configuration</h2>
+          <p class="muted">Your Lichess token is only sent to lichess.org.</p>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>Lichess username</span>
+            <input id="default_player" type="text" autocomplete="off" />
+            <small id="error-default_player" class="field-message error"></small>
+          </label>
+
+          <label>
+            <span>Optional Lichess token</span>
+            <input id="lichess_token" type="password" autocomplete="off" />
+            <small class="field-message">Token is optional. Public games can be fetched by username. A token may help with rate limits or later private actions. This app only sends it to lichess.org.</small>
+          </label>
+
+          <label>
+            <span>Default PGN path</span>
+            <div class="field-row">
+              <input id="default_pgn" type="text" />
+              <button id="browsePgnButton" type="button" class="secondary small">Browse</button>
+            </div>
+            <small id="warning-default_pgn" class="field-message warning-text"></small>
+          </label>
+
+          <label>
+            <span>Report output path</span>
+            <div class="field-row">
+              <input id="default_out" type="text" />
+              <button id="browseReportButton" type="button" class="secondary small">Browse</button>
+            </div>
+            <small id="warning-default_out" class="field-message warning-text"></small>
+          </label>
+
+          <label>
+            <span>Stockfish path</span>
+            <input id="stockfish_path" type="text" />
+          </label>
+
+          <label>
+            <span>Stockfish depth</span>
+            <input id="stockfish_depth" type="number" min="1" max="30" />
+            <small id="error-stockfish_depth" class="field-message error"></small>
+          </label>
+
+          <label>
+            <span>Stockfish time limit</span>
+            <input id="stockfish_time_limit" type="number" step="0.01" min="0.01" max="30" />
+            <small id="error-stockfish_time_limit" class="field-message error"></small>
+          </label>
+
+          <label class="checkbox-row">
+            <input id="maia2_enabled" type="checkbox" />
+            <span>Enable Maia 2 human-likeness analysis</span>
+          </label>
+
+          <label>
+            <span>Maia game type</span>
+            <select id="maia2_game_type"></select>
+            <small id="error-maia2_game_type" class="field-message error"></small>
+          </label>
+
+          <label>
+            <span>Maia device</span>
+            <input id="maia2_device" type="text" list="maia-device-options" />
+            <datalist id="maia-device-options">
+              <option value="cpu"></option>
+              <option value="cuda"></option>
+              <option value="mps"></option>
+            </datalist>
+            <small id="warning-maia2_device" class="field-message warning-text"></small>
+          </label>
+
+          <label>
+            <span>Maia target Elo</span>
+            <select id="maia2_target_elo"></select>
+            <small id="error-maia2_target_elo" class="field-message error"></small>
+          </label>
+        </div>
+
+        <div class="privacy-band">
+          <strong>Privacy boundary</strong>
+          <p>Your Lichess token is only sent to lichess.org. Generated reports and PGNs stay on this machine. Review the PGN before importing it into Lichess.</p>
+        </div>
+      </section>
+
+      <section class="panel run-panel">
+        <div class="section-header">
+          <h2>Run and output</h2>
+          <p class="muted">Import public Lichess games, analyse locally, then export annotated PGN for manual Lichess use.</p>
+        </div>
+
+        <div class="workflow-grid">
+          <div class="workflow-card">
+            <h3>1. Import recent games</h3>
+            <label><span>Perf filter</span><select id="import_perf"><option value="">Any</option><option value="rapid">rapid</option><option value="blitz">blitz</option><option value="bullet">bullet</option><option value="classical">classical</option></select></label>
+            <label><span>Max games</span><input id="import_max_games" type="number" min="1" max="200" value="20" /></label>
+            <label><span>Since days</span><input id="import_since_days" type="number" min="1" max="365" value="14" /></label>
+            <label class="checkbox-row"><input id="import_rated_only" type="checkbox" checked /><span>Rated games only</span></label>
+            <label><span>Imported PGN output</span><input id="import_out_path" type="text" /></label>
+            <button id="importGamesButton" class="primary">Import recent games</button>
+          </div>
+
+          <div class="workflow-card">
+            <h3>2. Analyse games</h3>
+            <label><span>PGN to analyse</span><input id="analyse_pgn_path" type="text" /></label>
+            <label><span>Markdown report output</span><input id="analyse_out_path" type="text" /></label>
+            <button id="analyseGamesButton" class="primary">Analyse games</button>
+            <div id="outputPaths" class="output-paths"></div>
+          </div>
+
+          <div class="workflow-card">
+            <h3>3. Export annotated PGN</h3>
+            <label><span>Analysis JSON source</span><input id="export_json_path" type="text" /></label>
+            <label><span>Annotated PGN output</span><input id="export_out_path" type="text" /></label>
+            <label><span>Max games to export</span><input id="export_max_games" type="number" min="1" max="200" value="10" /></label>
+            <label class="checkbox-row"><input id="export_critical_only" type="checkbox" checked /><span>Critical moments only</span></label>
+            <button id="exportPgnButton" class="primary">Export annotated PGN</button>
+          </div>
+        </div>
+
+        <div class="diagnostics-box">
+          <label class="checkbox-row"><input id="diagnosticIncludeReport" type="checkbox" /><span>Include current report and JSON in diagnostic bundle</span></label>
+          <label class="checkbox-row"><input id="diagnosticIncludePgn" type="checkbox" /><span>Include current PGN in diagnostic bundle</span></label>
+        </div>
+
+        <div class="log-panel">
+          <div class="log-header">
+            <h3>Command log</h3>
+            <button id="clearLogButton" class="secondary small">Clear</button>
+          </div>
+          <pre id="logOutput"></pre>
+        </div>
+      </section>
+    </main>
+
+    <template id="statusTemplate">
+      <article class="status-card">
+        <div class="status-head">
+          <strong class="status-name"></strong>
+          <span class="status-pill"></span>
+        </div>
+        <p class="status-details"></p>
+      </article>
+    </template>
+
+    <script src="../common/validation.js"></script>
+    <script src="../common/commands.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

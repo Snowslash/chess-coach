@@ -12,6 +12,9 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/desktop/out/
 
 # Agent/local planning scratch should stay out of the repository.
 docs/plans/
