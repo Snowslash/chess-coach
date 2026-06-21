@@ -12,6 +12,7 @@ from .models import AnalysisBundle
 from .pipeline import analyse_pgn
 from .report_writer import default_json_path
 from .training_plan import build_training_plan, write_training_plan_markdown
+from .web_server import DEFAULT_HOST, DEFAULT_PORT, guard_host, run_web_server
 from .weekly_review import build_weekly_review, write_weekly_review_markdown
 
 
@@ -79,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
     study_import.add_argument("--variant", default=None)
     study_import.add_argument("--mode", choices=("practice", "conceal", "gamebook"), default=None)
     study_import.add_argument("--token-env", default="LICHESS_TOKEN", help="Environment variable holding the Lichess OAuth token")
+    web = sub.add_parser("web", help="Run the local browser GUI on loopback")
+    web.add_argument("--host", default=DEFAULT_HOST, help="Bind host, default 127.0.0.1")
+    web.add_argument("--port", type=int, default=DEFAULT_PORT, help="Bind port, default 8765")
+    web.add_argument("--open", action="store_true", help="Open the default browser after starting the server")
+    web.add_argument("--allow-lan", action="store_true", help="Allow non-loopback bind hosts explicitly")
     return parser
 
 
@@ -219,6 +225,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Chapter: {chapter.name}")
             print(f"Chapter URL: {chapter.url}")
         return 0
+    if args.command == "web":
+        try:
+            guard_host(args.host, allow_lan=args.allow_lan)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        return run_web_server(
+            host=args.host,
+            port=args.port,
+            open_browser=args.open,
+            allow_lan=args.allow_lan,
+            project_root=None,
+            env_file=None,
+        )
     return 2
 
 

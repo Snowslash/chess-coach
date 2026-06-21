@@ -17,6 +17,7 @@ apps/desktop/dist/
 apps/desktop/out/
 
 # Agent/local planning scratch should stay out of the repository.
+.hermes/
 docs/plans/
 
 # Local longitudinal coaching state. Do not commit personal game history or derived memory.

@@ -3,7 +3,8 @@
 Chess Coach is still local-first. The difference now is interface choice:
 
 - CLI for technical and scripted use
-- Electron desktop GUI for non-technical users
+- local web GUI for Windows-native and non-terminal use
+- Electron desktop GUI prototype/wrapper
 
 There is still no hosted service, no analytics, and no data sent to Sangeev.
 
@@ -47,8 +48,10 @@ cp .env.example .env.stockfish
 That file is shared by:
 
 - `python -m chess_coach ...`
+- `python -m chess_coach web ...`
 - `bash scripts/run_report.sh`
 - `bash scripts/run_weekly_review.sh`
+- the local web GUI
 - the Electron desktop GUI
 
 Typical values:
@@ -65,6 +68,55 @@ export MAIA2_TARGET_ELO=1500
 ```
 
 `LICHESS_TOKEN` is optional for the default public-username import flow.
+
+## Local web GUI run
+
+This is the preferred dev-mode path for Windows-native users in this slice.
+
+From the repository root:
+
+```bash
+python3 -m chess_coach web --host 127.0.0.1 --port 8765 --open
+```
+
+Or:
+
+```bash
+python3 scripts/run_web_gui.py
+```
+
+If you skip `--open`, browse to:
+
+```text
+http://127.0.0.1:8765/
+```
+
+Local web GUI capabilities in this slice:
+
+- load/save `.env.stockfish`
+- inline validation
+- first-run defaults
+- Stockfish readiness test
+- Maia readiness test
+- Lichess username/token probe
+- public Lichess PGN import by username
+- local analysis
+- annotated PGN export
+- local diagnostic bundle
+
+Local web privacy boundary:
+
+- Binds to `127.0.0.1` by default
+- Refuses non-loopback hosts unless `--allow-lan` is passed explicitly
+- Your Lichess token is only sent to lichess.org
+- Generated reports and PGNs stay on this machine
+- Review the PGN before importing it into Lichess
+
+Windows notes:
+
+- No WSL is required for the intended user path
+- Install Stockfish on Windows, then paste the `stockfish.exe` path into the UI
+- A packaged one-click `.exe` remains future work after the local web GUI is stable
 
 ## Desktop GUI run
 
@@ -173,7 +225,8 @@ These remain local ignored artifacts:
 - Stockfish remains the tactical truth layer.
 - Maia 2 remains optional human-likeness annotation.
 - If Maia is unavailable, the Stockfish/mock workflow remains usable.
-- There is no hosted dashboard and no browser-hosted web app in this repository; the GUI is a local desktop shell.
+- The local web GUI is still local-only; there is no hosted dashboard, no dashboard service, and no remote backend in this repository.
+- Electron remains preserved as a separate local wrapper path.
 
 ## Git / licence hygiene
 

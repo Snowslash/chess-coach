@@ -2,12 +2,13 @@
 
 Local-first chess analysis tool: PGN games in, Stockfish and optional Maia 2 context locally, Markdown/JSON/annotated PGN out.
 
-Chess Coach now has two local interfaces:
+Chess Coach now has three local interfaces:
 
 - CLI: still supported for technical users and scripting.
-- Electron desktop GUI: for non-technical users who should not need the terminal or direct config-file editing.
+- Local web GUI: a FastAPI server bound to `127.0.0.1` by default, serving a plain browser UI for Windows-native users without WSL assumptions.
+- Electron desktop GUI: preserved as the existing desktop prototype/wrapper candidate.
 
-There is still no hosted service, no analytics, and no data sent to Sangeev. Lichess requests go only to https://lichess.org when you explicitly ask for them. There is no dashboard or hosted web surface here; the GUI is a local desktop shell.
+There is still no hosted service, no analytics, and no data sent to Sangeev. Lichess requests go only to https://lichess.org when you explicitly ask for them. The new web GUI is local-only by default; it is not a hosted dashboard and there is still no dashboard service here.
 
 ## Current state
 
@@ -16,10 +17,11 @@ This public repository includes:
 - Local CLI analysis pipeline.
 - Local annotated PGN export.
 - Explicit token-gated Lichess Study helpers.
+- Local web GUI under `apps/web/static/` served by `python -m chess_coach web`.
 - Local Electron desktop GUI under `apps/desktop/`.
 - Shared local config file: `.env.stockfish`.
 
-The desktop GUI does not upload a Study automatically in this slice. The safe path is still: import public games, analyse locally, export annotated PGN, then review the PGN before importing it into Lichess yourself. Automatic Study upload is planned later, but not in this local-only desktop slice.
+The local web GUI and desktop GUI both avoid automatic Study upload in the main workflow. The safe path is still: import public games, analyse locally, export annotated PGN, then review the PGN before importing it into Lichess yourself. Automatic Study upload is planned later, but not in this local-only slice.
 
 ## What it does
 
@@ -144,6 +146,57 @@ Optional token note:
 - A token may help with rate limits or later private/token-gated Lichess actions.
 - The desktop GUI only sends it to `lichess.org`.
 - Keep it local and out of git.
+
+## Local web GUI
+
+The local web GUI is the preferred non-terminal path for Windows-native users in this slice.
+
+What it does:
+
+- serves a plain browser UI from a loopback-only FastAPI server by default
+- reads and writes `.env.stockfish`
+- shows inline config validation
+- tests Stockfish and Maia readiness
+- tests Lichess username/token access
+- imports public Lichess games by username
+- runs local analysis
+- exports annotated PGN
+- creates a local diagnostic bundle
+
+What it deliberately does not do yet:
+
+- any hosted backend
+- any telemetry
+- automatic Lichess Study creation/import as part of the main web workflow
+- final Windows one-click packaging/installer
+
+Run it locally:
+
+```bash
+python3 -m chess_coach web --host 127.0.0.1 --port 8765 --open
+```
+
+Alternative wrapper:
+
+```bash
+python3 scripts/run_web_gui.py
+```
+
+Open http://127.0.0.1:8765/ in a browser if you do not pass `--open`.
+
+Local web privacy boundary:
+
+- Binds to `127.0.0.1` by default
+- Refuses non-loopback hosts unless `--allow-lan` is passed explicitly
+- Your Lichess token is only sent to lichess.org
+- Generated reports and PGNs stay on this machine
+- Review the PGN before importing it into Lichess
+
+Windows notes:
+
+- No WSL is required for the intended user path
+- Install Stockfish on Windows, then paste the full `stockfish.exe` path into the UI
+- A packaged one-click `.exe` is still a future step after this dev-mode web GUI slice
 
 ## Desktop GUI
 
