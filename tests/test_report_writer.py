@@ -195,3 +195,51 @@ def test_render_markdown_summarises_maia2_instead_of_dumping_every_move():
     assert "Full per-move Maia data is in `reports/game.json`." in human_section
     assert "move 1 white `Nf3`" not in human_section
     assert "move 3 black `Nc6`" not in human_section
+
+
+def test_maia2_opening_observations_do_not_promote_book_neutral_noise():
+    bundle = AnalysisBundle(
+        source_pgn="input/game.pgn",
+        games=[
+            GameAnalysis(
+                game_id="g1",
+                event="Training",
+                date="2026.05.30",
+                player_colour="white",
+                moves=[
+                    MoveAnalysis(
+                        move_number=1,
+                        side="white",
+                        san="c4",
+                        uci="c2c4",
+                        phase="opening",
+                        classification="book/neutral",
+                        eval_change=-0.3,
+                        maia2_played_move_prob=0.01,
+                        maia2_top_moves={"g1f3": 0.32},
+                    ),
+                    MoveAnalysis(
+                        move_number=4,
+                        side="white",
+                        san="e3?!",
+                        uci="e2e3",
+                        phase="opening",
+                        classification="inaccuracy",
+                        eval_change=-0.9,
+                        best_move="f1g2",
+                        maia2_played_move_prob=0.04,
+                        maia2_top_moves={"f1g2": 0.83},
+                    ),
+                ],
+            )
+        ],
+        patterns=PatternSummary(games_analysed=1, critical_moments=1),
+        metadata={"maia2_enabled": True, "maia2_available": True, "maia2_target_elo": 1500},
+    )
+
+    markdown = render_markdown(bundle, "reports/game.json", "reports/game.md")
+
+    human_section = markdown.split("## Maia 2 human-likeness", 1)[1].split("## Critical positions", 1)[0]
+    opening_section = human_section.split("### Opening repertoire/style observations", 1)[1]
+    assert "e3?!" in opening_section
+    assert "c4" not in opening_section

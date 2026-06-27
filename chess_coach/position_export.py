@@ -5,9 +5,10 @@ from urllib.parse import quote
 from .models import AnalysisBundle
 
 
-def lichess_analysis_url(fen: str) -> str:
+def lichess_analysis_url(fen: str, *, color: str = "white") -> str:
     encoded_fen = quote(fen.replace(" ", "_"), safe="/")
-    return f"https://lichess.org/analysis/standard/{encoded_fen}?color=white"
+    board_color = "black" if color == "black" else "white"
+    return f"https://lichess.org/analysis/standard/{encoded_fen}?color={board_color}"
 
 
 def render_position_exports(bundle: AnalysisBundle) -> str:
@@ -25,7 +26,7 @@ def render_position_exports(bundle: AnalysisBundle) -> str:
             lines.append(f"- Eval change: `{moment.eval_change}`")
             if moment.fen_before:
                 lines.append(f"- FEN: `{moment.fen_before}`")
-                lines.append(f"- Lichess analysis: {lichess_analysis_url(moment.fen_before)}")
+                lines.append(f"- Lichess analysis: {lichess_analysis_url(moment.fen_before, color=moment.side)}")
             else:
                 lines.append("- FEN: `unknown`")
             lines.append("")

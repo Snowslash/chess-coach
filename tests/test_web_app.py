@@ -7,7 +7,7 @@ import pytest
 
 from chess_coach.config import DEFAULT_CHESS_COACH_OUT, DEFAULT_CHESS_COACH_PGN, REDACTED_SECRET
 from chess_coach.gui_support import render_env_file
-from chess_coach.web_app import create_app
+from chess_coach.web_app import ImportLichessPayload, create_app
 
 
 def make_client(tmp_path: Path, **overrides):
@@ -183,6 +183,13 @@ def test_import_lichess_endpoint_validates_then_executes_runner(tmp_path: Path):
         }
     ]
     assert response.json()["out_path"] == "input/lichess_recent_example.pgn"
+
+
+def test_import_lichess_payload_default_never_targets_sample_games():
+    payload = ImportLichessPayload()
+
+    assert payload.out_path.startswith("input/lichess_recent")
+    assert payload.out_path != DEFAULT_CHESS_COACH_PGN
 
 
 @pytest.mark.parametrize(

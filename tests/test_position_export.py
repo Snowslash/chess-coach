@@ -13,6 +13,14 @@ def test_lichess_analysis_url_encodes_fen_for_board_editor_import():
     assert url.endswith("?color=white")
 
 
+def test_lichess_analysis_url_can_orient_black_review_positions():
+    fen = "r2qkbnr/pp3ppp/4p3/3pPb2/3Q1B2/8/PPP1BPPP/RN3RK1 b kq - 0 9"
+
+    url = lichess_analysis_url(fen, color="black")
+
+    assert url.endswith("?color=black")
+
+
 def test_render_position_exports_lists_reviewable_critical_moments():
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     bundle = AnalysisBundle(
@@ -49,3 +57,4 @@ def test_render_position_exports_lists_reviewable_critical_moments():
     assert "- Best move: `f5g6`" in markdown
     assert "- Eval change: `-1.02`" in markdown
     assert "- Lichess analysis:" in markdown
+    assert "?color=black" in markdown

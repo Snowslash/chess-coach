@@ -67,6 +67,15 @@ function defaultAnnotatedPgnPath(username) {
   return `reports/annotated/${clean}_annotated.pgn`;
 }
 
+function todaySlug() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function defaultAnalysisReportPath(username) {
+  const clean = (username || 'player').trim() || 'player';
+  return `reports/${todaySlug()}_${clean}_recent.md`;
+}
+
 function syncWorkflowDefaults() {
   const username = $('default_player').value.trim();
   if (!$('import_out_path').dataset.manual) {
@@ -76,7 +85,7 @@ function syncWorkflowDefaults() {
     $('analyse_pgn_path').value = $('import_out_path').value;
   }
   if (!$('analyse_out_path').dataset.manual) {
-    $('analyse_out_path').value = $('default_out').value.trim() || 'reports/latest.md';
+    $('analyse_out_path').value = defaultAnalysisReportPath(username);
   }
   if (!$('export_json_path').dataset.manual) {
     $('export_json_path').value = $('analyse_out_path').value.replace(/\.md$/i, '.json');
@@ -84,6 +93,14 @@ function syncWorkflowDefaults() {
   if (!$('export_out_path').dataset.manual) {
     $('export_out_path').value = defaultAnnotatedPgnPath(username);
   }
+}
+
+function resetWorkflowPaths() {
+  for (const id of ['import_out_path', 'analyse_pgn_path', 'analyse_out_path', 'export_json_path', 'export_out_path']) {
+    delete $(id).dataset.manual;
+  }
+  syncWorkflowDefaults();
+  appendLog('Reset workflow paths to username/date-specific defaults.');
 }
 
 function fillForm(config) {
@@ -334,6 +351,7 @@ function bindButtons() {
   $('saveConfigButton').addEventListener('click', saveConfig);
   $('testReadinessButton').addEventListener('click', testReadiness);
   $('testLichessButton').addEventListener('click', testLichess);
+  $('resetWorkflowPathsButton').addEventListener('click', resetWorkflowPaths);
   $('importGamesButton').addEventListener('click', importRecentGames);
   $('analyseGamesButton').addEventListener('click', analyseGames);
   $('exportPgnButton').addEventListener('click', exportAnnotatedPgn);

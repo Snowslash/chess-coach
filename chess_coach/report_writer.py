@@ -70,7 +70,12 @@ def _maia2_ranked_bad_moves(scored_moves, *, max_probability=None, min_probabili
 def _maia2_opening_style_rows(scored_moves, limit=8):
     candidates=[]
     for g,m,_ in scored_moves:
-        if m.phase == 'opening' and m.maia2_played_move_prob is not None and m.maia2_played_move_prob < 0.10:
+        if (
+            m.phase == 'opening'
+            and m.classification != 'book/neutral'
+            and m.maia2_played_move_prob is not None
+            and m.maia2_played_move_prob < 0.10
+        ):
             candidates.append((m.maia2_played_move_prob, g, m))
     return [_maia2_move_row(g,m) for _,g,m in sorted(candidates, key=lambda x:x[0])[:limit]]
 

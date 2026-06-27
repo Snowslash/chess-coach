@@ -44,6 +44,7 @@ from .report_writer import default_json_path
 APP_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = APP_DIR / "apps" / "web" / "static"
 SAFE_LICHESS_USERNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,28}$")
+DEFAULT_LICHESS_IMPORT_PGN = "input/lichess_recent.pgn"
 
 
 class ConfigPayload(BaseModel):
@@ -73,7 +74,7 @@ class ImportLichessPayload(BaseModel):
     perf: str | None = None
     rated_only: bool = False
     since_days: int | None = None
-    out_path: str = DEFAULT_CHESS_COACH_PGN
+    out_path: str = DEFAULT_LICHESS_IMPORT_PGN
 
 
 class AnalysePayload(BaseModel):
