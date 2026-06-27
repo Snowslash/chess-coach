@@ -187,7 +187,6 @@ def check_stockfish_readiness(config: ChessCoachConfig) -> dict[str, Any]:
         import chess.engine
 
         with chess.engine.SimpleEngine.popen_uci(candidate_path) as engine:
-            engine.quit()
             engine_name = engine.id.get("name") or "Stockfish"
     except Exception as exc:  # pragma: no cover - defensive runtime probe path
         return {
