@@ -16,13 +16,23 @@ const repoRoot = process.env.CHESS_COACH_PROJECT_ROOT || path.resolve(__dirname,
 const envFile = path.join(repoRoot, '.env.stockfish');
 const explicitPython = process.env.CHESS_COACH_PYTHON || null;
 
+function commandExists(command, args = ['--version']) {
+  const probe = spawnSync(command, args, { cwd: repoRoot, stdio: 'ignore' });
+  return probe.status === 0;
+}
+
 function resolveRuntime() {
   if (explicitPython) {
     return { executable: explicitPython, prefixArgs: [], description: explicitPython };
   }
-  const uvProbe = spawnSync('uv', ['--version'], { cwd: repoRoot, stdio: 'ignore' });
-  if (uvProbe.status === 0) {
+  if (commandExists('uv')) {
     return { executable: 'uv', prefixArgs: ['run', 'python'], description: 'uv run python' };
+  }
+  if (commandExists('python')) {
+    return { executable: 'python', prefixArgs: [], description: 'python' };
+  }
+  if (commandExists('python3')) {
+    return { executable: 'python3', prefixArgs: [], description: 'python3' };
   }
   return { executable: 'python', prefixArgs: [], description: 'python' };
 }
@@ -284,6 +294,12 @@ function createWindow() {
     },
   });
   window.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  const smokeExitMs = Number(process.env.CHESS_COACH_DESKTOP_SMOKE_EXIT_MS || 0);
+  if (smokeExitMs > 0) {
+    window.webContents.once('did-finish-load', () => {
+      setTimeout(() => app.quit(), smokeExitMs);
+    });
+  }
 }
 
 app.whenReady().then(() => {

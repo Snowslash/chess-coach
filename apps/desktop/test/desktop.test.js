@@ -12,6 +12,7 @@ const {
   defaultAnnotatedPgnPath,
   defaultImportedPgnPath,
 } = require('../src/common/commands');
+const { buildLaunchPlan, hasGraphicalDisplay, needsNoSandbox } = require('../scripts/start');
 const { validateConfigDraft, validateWorkflowInput } = require('../src/common/validation');
 
 test('command builders return argument arrays with no shell interpolation', () => {
@@ -88,6 +89,8 @@ test('desktop main process keeps sensitive boundaries narrow', () => {
   assert.doesNotMatch(mainText, /'--token',\s*payload\.token/);
   assert.match(mainText, /assertAllowedExternalUrl/);
   assert.match(mainText, /normaliseRepoPath/);
+  assert.match(mainText, /commandExists\('python3'\)/);
+  assert.match(mainText, /CHESS_COACH_DESKTOP_SMOKE_EXIT_MS/);
 });
 
 test('classic renderer scripts load together and bind primary buttons', async () => {
@@ -159,4 +162,41 @@ test('classic renderer scripts load together and bind primary buttons', async ()
 test('default output helpers derive stable local-first paths', () => {
   assert.equal(defaultImportedPgnPath('ExampleUser'), 'input/lichess_recent_ExampleUser.pgn');
   assert.equal(defaultAnnotatedPgnPath('ExampleUser'), 'reports/annotated/ExampleUser_annotated.pgn');
+});
+
+test('desktop start preflight reports whether a graphical display is available', () => {
+  assert.equal(hasGraphicalDisplay({ DISPLAY: ':0' }), true);
+  assert.equal(hasGraphicalDisplay({ WAYLAND_DISPLAY: 'wayland-0' }), true);
+  assert.equal(hasGraphicalDisplay({}), false);
+});
+
+test('desktop start preflight adds --no-sandbox only for Linux helper permission mismatch', () => {
+  assert.equal(needsNoSandbox({ platform: 'linux', chromeSandboxStat: { uid: 1000, mode: 0o100755 } }), true);
+  assert.equal(needsNoSandbox({ platform: 'linux', chromeSandboxStat: { uid: 0, mode: 0o104755 } }), false);
+  assert.equal(needsNoSandbox({ platform: 'darwin', chromeSandboxStat: { uid: 1000, mode: 0o100755 } }), false);
+
+  const plan = buildLaunchPlan({
+    platform: 'linux',
+    env: { DISPLAY: ':0' },
+    electronPath: '/tmp/electron',
+    guiAppPath: '/tmp/main.js',
+    chromeSandboxStat: { uid: 1000, mode: 0o100755 },
+  });
+
+  assert.deepEqual(plan.args, ['--no-sandbox', '/tmp/main.js']);
+  assert.match(plan.warnings[0], /--no-sandbox/);
+  assert.deepEqual(plan.errors, []);
+});
+
+test('desktop start preflight blocks headless Linux launches with a clear error', () => {
+  const plan = buildLaunchPlan({
+    platform: 'linux',
+    env: {},
+    electronPath: '/tmp/electron',
+    guiAppPath: '/tmp/main.js',
+    chromeSandboxStat: null,
+  });
+
+  assert.deepEqual(plan.args, ['/tmp/main.js']);
+  assert.match(plan.errors[0], /No graphical display detected/);
 });

@@ -228,6 +228,11 @@ npm install
 npm run start
 ```
 
+Linux notes:
+
+- `npm run start` now fails fast with a clear message when no graphical desktop session is available (`DISPLAY`/`WAYLAND_DISPLAY` unset).
+- On local Linux dev setups where Electron's `chrome-sandbox` helper is present but not root-owned `4755`, the launcher falls back to `--no-sandbox` and prints a warning instead of aborting with a fatal helper error.
+
 Desktop privacy boundary copy:
 
 - Runs locally.
