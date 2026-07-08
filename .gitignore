@@ -45,3 +45,12 @@ models/
 input/lichess_recent*.pgn
 input/lichess_pgn_*.pgn
 !input/sample_games.pgn
+
+# secret/certificate material
+*.pem
+*.p12
+*.pfx
+*.key
+secrets/
+credentials/
+*.local
