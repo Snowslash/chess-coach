@@ -83,14 +83,50 @@ test('workflow validation rejects missing required inputs', () => {
   assert.equal(validateWorkflowInput('export', { jsonPath: 'reports/latest.json', outPath: '', maxGames: 0 }).ok, false);
 });
 
-test('desktop main process keeps sensitive boundaries narrow', () => {
+test('desktop main process is a secured thin shell over the canonical loopback web root', () => {
   const mainText = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf-8');
+  const legacyRenderer = path.join(__dirname, '..', 'src', 'renderer', 'index.html');
+
+  assert.equal(fs.existsSync(legacyRenderer), true, 'legacy renderer remains available for rollback');
   assert.match(mainText, /path\.resolve\(__dirname, '\.\.\/\.\.\/\.\.'\)/);
-  assert.doesNotMatch(mainText, /'--token',\s*payload\.token/);
-  assert.match(mainText, /assertAllowedExternalUrl/);
-  assert.match(mainText, /normaliseRepoPath/);
-  assert.match(mainText, /commandExists\('python3'\)/);
+  assert.match(mainText, /startDesktopServer/);
+  assert.match(mainText, /window\.loadURL\(server\.url\)/);
+  assert.doesNotMatch(mainText, /loadFile\(/);
+  assert.doesNotMatch(mainText, /chess-coach:(?:load-config|save-config|import-lichess|analyse-games|export-annotated-pgn|create-diagnostic-bundle)/);
   assert.match(mainText, /CHESS_COACH_DESKTOP_SMOKE_EXIT_MS/);
+  assert.match(mainText, /contextIsolation:\s*true/);
+  assert.match(mainText, /nodeIntegration:\s*false/);
+  assert.match(mainText, /sandbox:\s*true/);
+  assert.match(mainText, /setWindowOpenHandler/);
+  assert.match(mainText, /will-navigate/);
+  assert.match(mainText, /did-finish-load[\s\S]*canonical React web root/);
+});
+
+test('preload exposes only the three narrow native methods', () => {
+  const preloadText = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf-8');
+  const calls = [];
+  let bridge = null;
+  const context = {
+    require(name) {
+      assert.equal(name, 'electron');
+      return {
+        contextBridge: { exposeInMainWorld(_name, value) { bridge = value; } },
+        ipcRenderer: { invoke(channel, payload) { calls.push([channel, payload]); return Promise.resolve(); } },
+      };
+    },
+  };
+
+  vm.runInNewContext(preloadText, context, { filename: 'preload.js' });
+
+  assert.deepEqual(Object.keys(bridge), ['pickPath', 'openPath', 'openExternal']);
+  bridge.pickPath({ purpose: 'pgnInput' });
+  bridge.openPath('reports/latest.md');
+  bridge.openExternal('https://lichess.org/study');
+  assert.deepEqual(calls, [
+    ['chess-coach:pick-path', { purpose: 'pgnInput' }],
+    ['chess-coach:open-path', 'reports/latest.md'],
+    ['chess-coach:open-external', 'https://lichess.org/study'],
+  ]);
 });
 
 test('classic renderer scripts load together and bind primary buttons', async () => {

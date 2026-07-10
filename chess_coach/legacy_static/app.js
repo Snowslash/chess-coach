@@ -106,7 +106,7 @@ function resetWorkflowPaths() {
 function fillForm(config) {
   state.config = config;
   $('default_player').value = config.default_player || '';
-  $('lichess_token').value = config.lichess_token || '';
+  $('lichess_token').value = '';
   $('default_pgn').value = config.default_pgn || 'input/sample_games.pgn';
   $('default_out').value = config.default_out || 'reports/latest.md';
   $('stockfish_path').value = config.stockfish_path || '';

@@ -128,19 +128,13 @@ npm install
 npm run start
 ```
 
-Desktop capabilities in this slice:
+Desktop behaviour in this slice:
 
-- load/save `.env.stockfish`
-- inline validation
-- first-run defaults
-- Stockfish readiness test
-- Maia readiness test
-- Lichess username/token probe
-- public Lichess PGN import by username
-- local analysis
-- annotated PGN export
-- settings export/import
-- local diagnostic bundle
+- starts the same loopback FastAPI application and loads the canonical React UI;
+- uses the same HTTP settings, readiness, Lichess import, analysis, export and diagnostics workflows as browser mode;
+- exposes only constrained native file picking, project-local output opening and allowlisted HTTPS external URLs;
+- does not expose config, token, import, analysis, export or diagnostics business operations through Electron IPC;
+- remains a source/development thin shell that requires a local Python/Chess Coach runtime; no standalone Windows installer is claimed.
 
 Desktop privacy boundary:
 

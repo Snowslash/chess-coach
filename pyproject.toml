@@ -36,6 +36,9 @@ chess-coach = "chess_coach.cli:main"
 where = ["."]
 include = ["chess_coach*"]
 
+[tool.setuptools.package-data]
+chess_coach = ["web_dist/**", "legacy_static/**"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

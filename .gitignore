@@ -15,10 +15,18 @@ build/
 apps/desktop/node_modules/
 apps/desktop/dist/
 apps/desktop/out/
+apps/web/node_modules/
+apps/web/test-results/
 
 # Agent/local planning scratch should stay out of the repository.
 .hermes/
 docs/plans/
+docs/shared-visual-language.md
+docs/*handoff*.md
+docs/*evaluation*.md
+review-artifacts/
+screenshots/
+artifacts/
 
 # Local longitudinal coaching state. Do not commit personal game history or derived memory.
 .coach/

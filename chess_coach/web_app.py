@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import platform
 import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Mapping
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __version__
 from .annotated_pgn import count_games_to_export, render_annotated_pgn
@@ -19,7 +22,6 @@ from .config import (
     DEFAULT_CHESS_COACH_OUT,
     DEFAULT_CHESS_COACH_PGN,
     DEFAULT_ENV_FILE,
-    REDACTED_SECRET,
     config_as_dict,
     default_config,
     load_config,
@@ -42,9 +44,32 @@ from .pipeline import analyse_pgn
 from .report_writer import default_json_path
 
 APP_DIR = Path(__file__).resolve().parent.parent
-STATIC_DIR = APP_DIR / "apps" / "web" / "static"
+STATIC_DIR = Path(__file__).resolve().parent / "legacy_static"
+WEB_DIST_DIR = Path(__file__).resolve().parent / "web_dist"
+VITE_APP_CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+)
+LEGACY_BROWSER_CSP = (
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
+    "base-uri 'none'; form-action 'none'"
+)
 SAFE_LICHESS_USERNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,28}$")
 DEFAULT_LICHESS_IMPORT_PGN = "input/lichess_recent.pgn"
+MUTATING_HTTP_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+TRUSTED_LOOPBACK_HOSTS = ["127.0.0.1", "localhost"]
+
+
+def _is_loopback_origin(origin: str) -> bool:
+    try:
+        parsed = urlparse(origin)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            return False
+        if parsed.hostname.lower() == "localhost":
+            return True
+        return ipaddress.ip_address(parsed.hostname).is_loopback
+    except ValueError:
+        return False
 
 
 class ConfigPayload(BaseModel):
@@ -59,6 +84,7 @@ class ConfigPayload(BaseModel):
     maia2_device: str = "cpu"
     maia2_target_elo: int = 1500
     lichess_token: str | None = None
+    clear_lichess_token: bool = False
     default_pgn: str = DEFAULT_CHESS_COACH_PGN
     default_out: str = DEFAULT_CHESS_COACH_OUT
 
@@ -72,7 +98,7 @@ class ImportLichessPayload(BaseModel):
     username: str = ""
     max_games: int = 20
     perf: str | None = None
-    rated_only: bool = False
+    rated_only: bool = True
     since_days: int | None = None
     out_path: str = DEFAULT_LICHESS_IMPORT_PGN
 
@@ -102,6 +128,17 @@ class DiagnosticsPayload(BaseModel):
 def static_asset_text(name: str) -> str:
     path = STATIC_DIR / name
     return path.read_text(encoding="utf-8")
+
+
+def packaged_vite_dist() -> Path:
+    index = WEB_DIST_DIR / "index.html"
+    assets = WEB_DIST_DIR / "assets"
+    if not index.is_file() or not assets.is_dir():
+        raise RuntimeError(
+            "Vite frontend build is missing. Run `cd apps/web && npm run build` to create "
+            "chess_coach/web_dist before starting the web application."
+        )
+    return WEB_DIST_DIR
 
 
 @contextmanager
@@ -137,11 +174,14 @@ def _serialise_config(env_file: Path) -> dict[str, Any]:
     exists = env_file.exists()
     config = load_config(env_file) if exists else default_config()
     payload = config_as_dict(config)
-    payload["lichess_token"] = payload.get("lichess_token") or ""
+    token_configured = bool(payload.get("lichess_token"))
+    payload["lichess_token"] = ""
+    payload["lichess_token_configured"] = token_configured
     return {
         "exists": exists,
         "env_file": str(env_file),
         "config": payload,
+        "lichess_token_configured": token_configured,
         "validation": validate_gui_config(payload),
         "options": {
             "maia_game_types": list(MAIA_GAME_TYPE_OPTIONS),
@@ -149,6 +189,16 @@ def _serialise_config(env_file: Path) -> dict[str, Any]:
             "maia_elo": list(MAIA_ELO_OPTIONS),
         },
     }
+
+
+def _redact_response_strings(value: Any, secrets: tuple[str, ...]) -> Any:
+    if isinstance(value, str):
+        return redact_text(value, secrets)
+    if isinstance(value, dict):
+        return {key: _redact_response_strings(item, secrets) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_response_strings(item, secrets) for item in value]
+    return value
 
 
 def _default_import_runner(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
@@ -237,7 +287,17 @@ def create_app(
 ) -> FastAPI:
     root = Path(project_root or APP_DIR).resolve()
     env_path = Path(env_file).resolve() if env_file else (root / DEFAULT_ENV_FILE)
+    vite_dist = packaged_vite_dist()
     app = FastAPI(title="Chess Coach", version=__version__)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_LOOPBACK_HOSTS)
+
+    @app.middleware("http")
+    async def reject_cross_origin_mutations(request: Request, call_next):
+        origin = request.headers.get("origin")
+        if request.method in MUTATING_HTTP_METHODS and origin and not _is_loopback_origin(origin):
+            return JSONResponse(status_code=403, content={"detail": "Cross-origin request rejected."})
+        return await call_next(request)
+
     app.state.project_root = root
     app.state.env_file = env_path
     app.state.default_config = default_config()
@@ -253,10 +313,21 @@ def create_app(
     app.state.diagnostic_bundle_creator = diagnostic_bundle_creator
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/assets", StaticFiles(directory=vite_dist / "assets"), name="vite-assets")
 
-    @app.get("/", response_class=HTMLResponse)
-    def root_page() -> HTMLResponse:
-        return HTMLResponse(static_asset_text("index.html"))
+    @app.get("/", response_class=FileResponse)
+    def root_page() -> FileResponse:
+        return FileResponse(vite_dist / "index.html", headers={"Content-Security-Policy": VITE_APP_CSP})
+
+    @app.get("/legacy", response_class=HTMLResponse)
+    @app.get("/legacy/", response_class=HTMLResponse)
+    def legacy_page() -> HTMLResponse:
+        return HTMLResponse(static_asset_text("index.html"), headers={"Content-Security-Policy": LEGACY_BROWSER_CSP})
+
+    @app.get("/next")
+    @app.get("/next/")
+    def next_compatibility_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/", status_code=307)
 
     @app.get("/api/bootstrap")
     def bootstrap() -> dict[str, Any]:
@@ -301,14 +372,24 @@ def create_app(
     @app.post("/api/config")
     def save_config(payload: ConfigPayload) -> dict[str, Any]:
         data = payload.model_dump()
+        existing_config = load_config(env_path) if env_path.exists() else default_config()
+        if data.pop("clear_lichess_token"):
+            data["lichess_token"] = None
+        elif not str(data.get("lichess_token") or "").strip():
+            data["lichess_token"] = existing_config.lichess_token
         validation = validate_gui_config(data)
         _raise_with_validation(validation)
         config = config_from_payload(data)
         path = write_env_file(config, env_path)
+        browser_config = config_as_dict(config)
+        token_configured = bool(browser_config.get("lichess_token"))
+        browser_config["lichess_token"] = ""
+        browser_config["lichess_token_configured"] = token_configured
         return {
             "ok": True,
             "path": str(path),
-            "config": config_as_dict(config, redact_token=True),
+            "config": browser_config,
+            "lichess_token_configured": token_configured,
             "validation": validation,
         }
 
@@ -322,20 +403,28 @@ def create_app(
         username = payload.username.strip()
         if not username:
             raise _validation_error(400, {"ok": False, "errors": {"username": "Lichess username is required."}})
-        result = dict(app.state.lichess_probe(username, payload.token))
+        saved_token = load_config(env_path).lichess_token if env_path.exists() else None
+        token = payload.token if payload.token and payload.token.strip() else saved_token
+        result = dict(app.state.lichess_probe(username, token))
         result.pop("token", None)
-        return result
+        return _redact_response_strings(result, (token or "",))
 
     @app.post("/api/import-lichess")
     def import_lichess(payload: ImportLichessPayload) -> dict[str, Any]:
         data = payload.model_dump()
         errors: dict[str, str] = {}
+        perf = (data.get("perf") or "").strip()
+        data["perf"] = perf or None
         if not data["username"].strip() or not SAFE_LICHESS_USERNAME.fullmatch(data["username"].strip()):
             errors["username"] = "Use a valid Lichess username."
         if not 1 <= data["max_games"] <= 200:
             errors["max_games"] = "Choose between 1 and 200 games."
+        if perf and perf not in {"rapid", "blitz", "bullet", "classical"}:
+            errors["perf"] = "Choose rapid, blitz, bullet, or classical."
         if data.get("since_days") is not None and data["since_days"] < 1:
             errors["since_days"] = "Enter a positive number of days."
+        if data["out_path"].strip() == DEFAULT_CHESS_COACH_PGN:
+            errors["out_path"] = "The sample PGN fixture cannot be used for a Lichess import."
         try:
             _ensure_project_local(root, data["out_path"], label="out_path")
         except ValueError as exc:
