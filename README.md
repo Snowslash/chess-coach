@@ -10,7 +10,7 @@ Source: https://github.com/Snowslash/chess-coach
 
 - CLI for scripting and technical use.
 - Local web GUI served by FastAPI on `127.0.0.1` by default.
-- Electron desktop GUI prototype under `apps/desktop/`.
+- Optional Electron thin shell under `apps/desktop/`; it starts and loads the same loopback FastAPI/React application.
 
 The safe workflow is: import public games, analyse locally, export annotated PGN, review it yourself, then manually import into Lichess if wanted. Automatic Study helpers exist as explicit CLI actions only.
 
@@ -101,6 +101,20 @@ python3 scripts/run_web_gui.py
 
 Open `http://127.0.0.1:8765/` if the browser does not open automatically.
 
+### React browser interface
+
+The React interface is the canonical browser UI at `http://127.0.0.1:8765/`. The legacy browser implementation remains available temporarily at `http://127.0.0.1:8765/legacy/` as a rollback route. `http://127.0.0.1:8765/next/` redirects to `/` for compatibility.
+
+```bash
+cd apps/web
+npm ci
+npm run typecheck
+npm test -- --run
+npm run build
+```
+
+The generated `chess_coach/web_dist/` bundle is packaged with the Python application. The canonical browser UI remains local-only and is protected by a production Content Security Policy.
+
 The web GUI can:
 
 - read/write `.env.stockfish`
@@ -123,6 +137,9 @@ npm run start
 ```
 
 The desktop GUI uses the same local config and privacy boundary as the web GUI.
+It is a source/development thin shell, not a standalone installer: Python and the Chess Coach package must still be available locally. The preload exposes only constrained file picking, project-local output opening and allowlisted external URLs.
+
+Packaging and Windows validation remain deliberately separate from the core application. Run [`docs/windows-smoke-checklist.md`](docs/windows-smoke-checklist.md) on a real Windows machine before making Windows or one-click-installer claims.
 
 ## CLI examples
 

@@ -145,3 +145,19 @@ def test_github_hygiene_docs_explain_local_artifacts_and_licensing():
         assert "not vendored" in document
         assert "Maia" in document
         assert "model weights" in document
+
+
+def test_python_packaging_explicitly_includes_both_browser_distributions_and_uses_one_version():
+    import tomllib
+
+    from chess_coach import __version__
+    from chess_coach.web_app import STATIC_DIR
+
+    pyproject = text("pyproject.toml")
+    metadata = tomllib.loads(pyproject)
+
+    assert "[tool.setuptools.package-data]" in pyproject
+    assert 'chess_coach = ["web_dist/**", "legacy_static/**"]' in pyproject
+    assert STATIC_DIR.parent.name == "chess_coach"
+    assert STATIC_DIR.name == "legacy_static"
+    assert __version__ == metadata["project"]["version"]

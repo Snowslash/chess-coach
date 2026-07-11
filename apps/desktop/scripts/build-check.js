@@ -3,11 +3,13 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const mainFile = path.join(root, 'src', 'main.js');
+const nativeFile = path.join(root, 'src', 'native.js');
 const preloadFile = path.join(root, 'src', 'preload.js');
 const rendererAppFile = path.join(root, 'src', 'renderer', 'app.js');
+const serverFile = path.join(root, 'src', 'server.js');
 const startFile = path.join(root, 'scripts', 'start.js');
 
-for (const file of [mainFile, preloadFile, rendererAppFile, startFile]) {
+for (const file of [mainFile, nativeFile, preloadFile, rendererAppFile, serverFile, startFile]) {
   if (!fs.existsSync(file)) {
     throw new Error(`Missing expected file: ${file}`);
   }
