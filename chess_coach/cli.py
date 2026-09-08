@@ -81,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     study_import.add_argument("--mode", choices=("practice", "conceal", "gamebook"), default=None)
     study_import.add_argument("--token-env", default="LICHESS_TOKEN", help="Environment variable holding the Lichess OAuth token")
     web = sub.add_parser("web", help="Run the local browser GUI on loopback")
+    web.add_argument("--project-root", help="Writable folder for local settings, inputs and reports")
     web.add_argument("--host", default=DEFAULT_HOST, help="Bind host, default 127.0.0.1")
     web.add_argument("--port", type=int, default=DEFAULT_PORT, help="Bind port, default 8765")
     web.add_argument("--open", action="store_true", help="Open the default browser after starting the server")
@@ -236,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
             port=args.port,
             open_browser=args.open,
             allow_lan=args.allow_lan,
-            project_root=None,
+            project_root=args.project_root,
             env_file=None,
         )
     return 2

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import webbrowser
 from pathlib import Path
+from threading import Event, Thread
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -47,7 +48,22 @@ def run_web_server(
     app = create_app(project_root=project_root, env_file=env_file)
     url = f"http://{safe_host}:{port}/"
     print(f"Chess Coach web GUI: {url}")
-    if open_browser:
-        open_browser_at(url)
-    uvicorn.run(app, host=safe_host, port=port, log_level="info")
+    server = uvicorn.Server(uvicorn.Config(app, host=safe_host, port=port, log_level="info"))
+    stopped = Event()
+
+    def open_when_ready():
+        while not stopped.wait(0.05):
+            if server.started:
+                open_browser_at(url)
+                return
+
+    opener = Thread(target=open_when_ready, daemon=True) if open_browser else None
+    if opener:
+        opener.start()
+    try:
+        server.run()
+    finally:
+        stopped.set()
+        if opener:
+            opener.join(timeout=1)
     return 0

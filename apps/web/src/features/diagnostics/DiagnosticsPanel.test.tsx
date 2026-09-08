@@ -21,7 +21,7 @@ function diagnosticsFetch(diagnosticsResponse = response({ ok: true, path: ".coa
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     void init;
     if (String(input) === "/api/bootstrap") {
-      return Promise.resolve(response({ app: { name: "Chess Coach", version: "1.0.0" }, privacy: { local_only: true, telemetry: false, storage: "Outputs stay local." } }));
+      return Promise.resolve(response({ session_token: "SYNTHETIC-session", app: { name: "Chess Coach", version: "1.0.0" }, privacy: { local_only: true, telemetry: false, storage: "Outputs stay local." } }));
     }
     if (String(input) === "/api/readiness") {
       return Promise.resolve(response({ stockfish: { status: "available", details: "Configured" }, maia: { status: "disabled", details: "Not enabled" } }));

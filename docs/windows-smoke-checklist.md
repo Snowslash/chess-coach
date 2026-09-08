@@ -22,6 +22,9 @@ Run this only on a real, disposable Windows test environment. Record Windows edi
 - [ ] Confirm binding is loopback-only with `netstat` or `Get-NetTCPConnection`.
 - [ ] Confirm an untrusted `Host` is rejected.
 - [ ] Confirm a non-loopback mutation `Origin` is rejected.
+- [ ] Confirm missing/wrong/stale `X-Chess-Coach-Session` rejects mutations; fresh bootstrap token succeeds.
+- [ ] Confirm bootstrap is `Cache-Control: no-store` and restart changes the session token.
+- [ ] Confirm React, Electron React and `/legacy/` settings saves carry the session header without storing it.
 - [ ] Save settings, restart, and confirm persistence.
 - [ ] Analyse the committed/sample PGN with Stockfish.
 - [ ] Verify Markdown and JSON outputs.

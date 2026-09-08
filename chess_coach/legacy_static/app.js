@@ -174,10 +174,13 @@ function setOutputPaths(paths) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method)) {
+    const bootstrap = await api('/api/bootstrap');
+    if (!bootstrap.session_token) throw new Error('Local session unavailable.');
+    headers['X-Chess-Coach-Session'] = bootstrap.session_token;
+  }
+  const response = await fetch(path, { ...options, headers });
   const data = await response.json();
   if (!response.ok) {
     throw data;

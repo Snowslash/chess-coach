@@ -1,3 +1,4 @@
+import { withSession } from "../../test/session-fetch";
 import { useState } from "react";
 
 import { render, screen, waitFor } from "@testing-library/react";
@@ -70,7 +71,7 @@ describe("WorkflowSection", () => {
       .mockResolvedValueOnce(response({ ok: true, status: "available", message: "Public games available" }))
       .mockResolvedValueOnce(response({ ok: true, out_path: "input/lichess_recent_exampleuser.pgn", stdout: "Imported games", stderr: "" }))
       .mockResolvedValueOnce(response({ ok: true, markdown_path: "reports/2026-07-09_exampleuser_recent.md", json_path: "reports/2026-07-09_exampleuser_recent.json", games_analysed: 3, stdout: "Analysis complete", stderr: "" }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
     const onResult = vi.fn();
     render(<WorkflowSection onResult={onResult} today={() => "2026-07-09"} />);
@@ -96,7 +97,7 @@ describe("WorkflowSection", () => {
 
   it("analyses an existing project-relative PGN without importing", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ ok: true, markdown_path: "reports/2026-07-09_exampleuser_recent.md", json_path: "reports/2026-07-09_exampleuser_recent.json", games_analysed: 1, stdout: "Analysis complete", stderr: "" }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
     render(<WorkflowSection today={() => "2026-07-09"} />);
 
@@ -118,7 +119,7 @@ describe("WorkflowSection", () => {
       .mockResolvedValueOnce(response({ ok: true, out_path: "input/lichess_recent_exampleuser.pgn", stdout: "", stderr: "" }))
       .mockResolvedValueOnce(response({ ok: true, markdown_path: "reports/2026-07-09_exampleuser_recent.md", json_path: "reports/2026-07-09_exampleuser_recent.json", games_analysed: 3, stdout: "", stderr: "" }))
       .mockResolvedValueOnce(response({ ok: true, out_path: "input/lichess_recent_exampleuser.pgn", stdout: "", stderr: "" }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
     function WorkflowWithResult() {
       const [result, setResult] = useState<WorkflowResult | null>(null);
@@ -145,7 +146,7 @@ describe("WorkflowSection", () => {
     const fetchMock = vi.fn()
       .mockReturnValueOnce(importResponse)
       .mockResolvedValueOnce(response({ ok: true, markdown_path: "reports/2026-07-09_exampleuser_recent.md", json_path: "reports/2026-07-09_exampleuser_recent.json", games_analysed: 1, stdout: "", stderr: "" }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
     render(<WorkflowSection today={() => "2026-07-09"} />);
 

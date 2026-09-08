@@ -30,6 +30,7 @@ const readinessResponse = {
 
 function stubSettingsFetch(saveResponse: Response = new Response(JSON.stringify({ ok: true, config: configResponse.config, lichess_token_configured: true, validation: configResponse.validation }))) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === "/api/bootstrap") return Promise.resolve(new Response(JSON.stringify({ session_token: "SYNTHETIC-session" })));
     if (String(input) === "/api/config" && init?.method === "POST") {
       return Promise.resolve(saveResponse);
     }

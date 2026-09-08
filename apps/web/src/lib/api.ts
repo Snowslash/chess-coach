@@ -74,11 +74,18 @@ function safeValidationErrors(value: unknown): Record<string, string> {
 }
 
 async function requestJson<T>(path: `/api/${string}`, options: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = options.body === undefined ? {} : { "Content-Type": "application/json" };
+  if (options.method === "POST") {
+    // Fetch for each mutation: no token in storage/URLs, and server restarts need no page reload.
+    const bootstrap = await requestJson<{ session_token: string }>("/api/bootstrap", { signal: options.signal });
+    if (!bootstrap.session_token) throw new ApiError("Local session unavailable.");
+    headers["X-Chess-Coach-Session"] = bootstrap.session_token;
+  }
   let response: Response;
   try {
     response = await fetch(path, {
       method: options.method ?? "GET",
-      headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: options.signal,
     });

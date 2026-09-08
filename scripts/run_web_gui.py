@@ -1,5 +1,10 @@
-from chess_coach.web_server import run_web_server
+"""Browser-first source/PyInstaller launcher; working data stays in the launch folder."""
+import sys
+from pathlib import Path
+
+from chess_coach.cli import main
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_web_server())
+    options = sys.argv[1:] or ["--open"]
+    raise SystemExit(main(["web", "--project-root", str(Path.cwd()), *options]))

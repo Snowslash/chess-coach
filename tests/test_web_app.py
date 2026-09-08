@@ -23,7 +23,9 @@ def make_client(tmp_path: Path, **overrides):
     }
     kwargs.update(overrides)
     app = create_app(**kwargs)
-    return TestClient(app, base_url="http://127.0.0.1"), project_root, env_file
+    client = TestClient(app, base_url="http://127.0.0.1")
+    client.headers["X-Chess-Coach-Session"] = client.get("/api/bootstrap").json()["session_token"]
+    return client, project_root, env_file
 
 
 def valid_config_payload(**overrides):

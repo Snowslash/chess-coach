@@ -1,3 +1,4 @@
+import { withSession } from "../../test/session-fetch";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -75,7 +76,7 @@ describe("ResultsPage", () => {
 
   it("shows successful analysis metadata and exports annotated PGN from safe defaults", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ ok: true, out_path: "reports/annotated/exampleuser_annotated.pgn", games_exported: 2, stdout: "Annotated PGN created", stderr: "" }));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
     render(<ResultsPage result={analysisResult} />);
 
@@ -102,7 +103,7 @@ describe("ResultsPage", () => {
   });
 
   it("keeps the latest analysis metadata visible when export fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ detail: { errors: { json_path: "Analysis JSON was not found." } } }, 400)));
+    vi.stubGlobal("fetch", withSession(vi.fn().mockResolvedValue(response({ detail: { errors: { json_path: "Analysis JSON was not found." } } }, 400))));
     const user = userEvent.setup();
     render(<ResultsPage result={analysisResult} />);
 
@@ -122,7 +123,7 @@ describe("ResultsPage", () => {
     const exportResponse = new Promise<Response>((resolve) => {
       resolveExport = resolve;
     });
-    vi.stubGlobal("fetch", vi.fn().mockReturnValue(exportResponse));
+    vi.stubGlobal("fetch", withSession(vi.fn().mockReturnValue(exportResponse)));
     const user = userEvent.setup();
     render(<ResultsPage result={analysisResult} />);
 

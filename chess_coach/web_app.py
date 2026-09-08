@@ -4,13 +4,14 @@ import json
 import ipaddress
 import platform
 import re
+import secrets
 import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -288,6 +289,7 @@ def create_app(
     root = Path(project_root or APP_DIR).resolve()
     env_path = Path(env_file).resolve() if env_file else (root / DEFAULT_ENV_FILE)
     vite_dist = packaged_vite_dist()
+    session_token = secrets.token_urlsafe(32)
     app = FastAPI(title="Chess Coach", version=__version__)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_LOOPBACK_HOSTS)
 
@@ -296,6 +298,10 @@ def create_app(
         origin = request.headers.get("origin")
         if request.method in MUTATING_HTTP_METHODS and origin and not _is_loopback_origin(origin):
             return JSONResponse(status_code=403, content={"detail": "Cross-origin request rejected."})
+        if request.method in MUTATING_HTTP_METHODS and request.url.path.startswith("/api/"):
+            supplied = request.headers.get("x-chess-coach-session", "")
+            if not secrets.compare_digest(supplied.encode(), session_token.encode()):
+                return JSONResponse(status_code=403, content={"detail": "Local session token required."})
         return await call_next(request)
 
     app.state.project_root = root
@@ -330,8 +336,10 @@ def create_app(
         return RedirectResponse(url="/", status_code=307)
 
     @app.get("/api/bootstrap")
-    def bootstrap() -> dict[str, Any]:
+    def bootstrap(response: Response) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "no-store"
         return {
+            "session_token": session_token,
             "app": {"name": "Chess Coach", "version": __version__},
             "paths": {
                 "project_root": str(root),

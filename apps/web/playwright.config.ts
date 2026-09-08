@@ -6,12 +6,12 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
   use: {
-    baseURL: "http://127.0.0.1:8899",
+    baseURL: "http://127.0.0.1:5182",
     browserName: "chromium",
     headless: true,
   },
   webServer: {
-    command: "python3 -m chess_coach web --host 127.0.0.1 --port 8899",
+    command: "python3 -m chess_coach web --host 127.0.0.1 --port 5182",
     cwd: fileURLToPath(new URL("../..", import.meta.url)),
     reuseExistingServer: false,
     timeout: 30_000,
