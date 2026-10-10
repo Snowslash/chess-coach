@@ -225,11 +225,21 @@ Generated reports, imported PGNs, `.coach/state.json`, `.env.stockfish`, engine 
 
 ## Verify
 
-Python tests:
+The checks-only CI workflow runs the locked minimal Python development install and
+canonical browser typecheck, unit tests and build before the Python suite. It does
+not install Stockfish, the optional Maia runtime or model weights.
+
+From a clean checkout, build the browser bundle first (the Python web tests use it):
 
 ```bash
-uv run --with pytest --with python-chess --with pydantic python -m pytest -q
+(cd apps/web && npm ci && npm run typecheck && npm test -- --run && npm run build)
+uv lock --check
+uv sync --locked --extra dev
+uv run --locked --extra dev python -m pytest -q -ra
 ```
+
+The `dev` extra includes the web test client. Add `--extra maia2` explicitly only
+when you want the optional ML dependencies.
 
 Desktop app:
 

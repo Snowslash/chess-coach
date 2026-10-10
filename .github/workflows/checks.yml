@@ -1,0 +1,45 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.19'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Check Python lockfile
+        run: uv lock --check
+      - name: Install minimal Python development dependencies
+        run: uv sync --locked --extra dev
+      - name: Install browser dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Check browser types
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Test browser UI
+        working-directory: apps/web
+        run: npm test -- --run
+      - name: Build canonical browser bundle
+        working-directory: apps/web
+        run: npm run build
+      - name: Test Python application
+        run: uv run --locked --extra dev python -m pytest -q -ra
