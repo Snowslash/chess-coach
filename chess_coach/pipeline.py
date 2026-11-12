@@ -18,11 +18,13 @@ def analyse_pgn(
     mock: bool = False,
     *,
     config: ChessCoachConfig | None = None,
+    maia2_save_root: str | Path | None = None,
 ) -> AnalysisBundle:
     """Analyse using one config snapshot and the caller's input/output paths.
 
-    CLI callers may omit config to retain the existing environment defaults.
-    Web callers supply their validated config and absolute project-local paths.
+    CLI callers may omit config/cache context to retain the existing defaults.
+    Web callers supply their validated config and absolute project-local paths,
+    including the Maia model directory rather than relying on process cwd.
     """
     cfg = config if config is not None else load_config()
     parsed = parse_pgn_file(pgn_path, player=player or cfg.default_player)
@@ -32,7 +34,7 @@ def analyse_pgn(
     maia2_reason = maia2.reason
     if maia2.available:
         try:
-            maia2_model, maia2_prepared, maia2_inference_each = load_maia2_runtime(cfg)
+            maia2_model, maia2_prepared, maia2_inference_each = load_maia2_runtime(cfg, save_root=maia2_save_root)
             annotate_games_with_maia2(analyses, maia2_model, maia2_prepared, cfg.maia2_target_elo, maia2_inference_each)
         except Exception as exc:
             maia2 = type(maia2)(enabled=True, available=False, reason=f'Maia 2 runtime failed: {exc}')

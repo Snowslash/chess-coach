@@ -73,8 +73,15 @@ Web operations resolve input/output paths against the app's `project_root`, not
 the process working directory. Analysis loads and validates the app's selected
 `env_file` once per operation and passes that config snapshot to the pipeline;
 it does not reload `.env.stockfish` from an unrelated current directory.
-Existing environment-over-file precedence is unchanged. Relative Stockfish
-file paths are rooted in `project_root`; bare commands can still use `PATH`.
+Existing environment-over-file precedence is unchanged, including when the
+selected file is absent; invalid environment values reject analysis before
+engine calls or report writes. Relative Stockfish file paths are rooted in
+`project_root`; bare commands can still use `PATH`. Optional Maia loads receive
+an explicit absolute `project_root/maia2_models` cache path, independent of the
+launch directory or the selected config file's directory. CLI calls without an
+explicit cache context retain Maia's `./maia2_models` default. Enabling Maia can
+still download missing weights; loader failures remain visible in report
+metadata without preventing the base analysis report.
 API output paths remain project-relative, with symlinks resolved inside that
 root. The derived JSON report is subject to the same confinement check.
 Two operations with different roots/settings can overlap without changing cwd.

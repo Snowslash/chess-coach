@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import importlib
 import importlib.util
+from pathlib import Path
 from typing import Callable, Iterable
 
 from .config import ChessCoachConfig
@@ -44,11 +45,15 @@ def maia2_available(config: ChessCoachConfig) -> Maia2Status:
     return Maia2Status(enabled=True, available=True)
 
 
-def load_maia2_runtime(config: ChessCoachConfig):
-    """Load Maia 2 model/runtime. This may download model weights."""
+def load_maia2_runtime(config: ChessCoachConfig, *, save_root: str | Path | None = None):
+    """Load optional Maia; this may download weights into the selected cache.
+
+    Omitting save_root retains Maia's cwd-based cache default for CLI callers.
+    """
     maia2_model = importlib.import_module("maia2.model")
     maia2_inference = importlib.import_module("maia2.inference")
-    model = maia2_model.from_pretrained(type=config.maia2_game_type, device=config.maia2_device)
+    cache_options = {"save_root": str(Path(save_root).resolve())} if save_root is not None else {}
+    model = maia2_model.from_pretrained(type=config.maia2_game_type, device=config.maia2_device, **cache_options)
     prepared = maia2_inference.prepare()
     return model, prepared, maia2_inference.inference_each
 

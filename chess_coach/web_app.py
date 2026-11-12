@@ -213,9 +213,9 @@ def _default_analyse_runner(project_root: Path, payload: dict[str, Any], *, env_
     pgn_path = _ensure_project_local(project_root, payload["pgn_path"], label="pgn_path", must_exist=True)
     out_path = _ensure_project_local(project_root, payload["out_path"], label="out_path")
     try:
-        config = load_config(env_file) if env_file.exists() else default_config()
+        config = load_config(env_file)
     except ValueError as exc:
-        raise _validation_error(400, {"ok": False, "errors": {"config": "Invalid numeric setting in the selected config file."}}) from exc
+        raise _validation_error(400, {"ok": False, "errors": {"config": "Invalid numeric setting in the selected config file or environment."}}) from exc
     _raise_with_validation(validate_gui_config(config_as_dict(config)))
     if config.stockfish_path:
         engine_path = Path(config.stockfish_path)
@@ -223,7 +223,10 @@ def _default_analyse_runner(project_root: Path, payload: dict[str, Any], *, env_
         if not engine_path.is_absolute() and (len(engine_path.parts) > 1 or (project_root / engine_path).exists()):
             config = replace(config, stockfish_path=str((project_root / engine_path).resolve()))
     try:
-        bundle = analyse_pgn(pgn_path, out_path, player=payload["username"], mock=payload.get("mock", False), config=config)
+        bundle = analyse_pgn(
+            pgn_path, out_path, player=payload["username"], mock=payload.get("mock", False),
+            config=config, maia2_save_root=project_root / "maia2_models",
+        )
     except ValueError as exc:
         raise _validation_error(400, {"ok": False, "errors": {"pgn_path": str(exc)}}) from exc
     json_path = default_json_path(out_path).relative_to(project_root)
