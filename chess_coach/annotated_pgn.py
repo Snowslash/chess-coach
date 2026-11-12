@@ -7,6 +7,7 @@ import chess
 import chess.pgn
 
 from .models import AnalysisBundle, CriticalMoment, GameAnalysis, MoveAnalysis
+from .pgn_parser import starting_board
 
 _HEADER_KEYS = ("Event", "Site", "Date", "White", "Black", "Result")
 
@@ -72,16 +73,6 @@ def _critical_lookup(game: GameAnalysis) -> dict[tuple[int, str], CriticalMoment
     return {(moment.move_number, moment.side): moment for moment in game.critical_moments}
 
 
-def _starting_board(analysis: GameAnalysis) -> chess.Board:
-    fen = analysis.headers.get("FEN")
-    if fen:
-        try:
-            return chess.Board(fen)
-        except ValueError as exc:
-            raise ValueError(f"Invalid starting FEN for {analysis.game_id}: {fen}") from exc
-    return chess.Board()
-
-
 def _should_comment(
     move: MoveAnalysis,
     critical: CriticalMoment | None,
@@ -127,9 +118,11 @@ def render_annotated_game(
         if value:
             game.headers[key] = value
 
-    board = _starting_board(analysis)
+    board = starting_board(analysis.headers)
     if analysis.headers.get("FEN"):
-        game.setup(board.copy(stack=False))
+        # Headers already define the board. Game.setup() would normalize FEN
+        # (or remove an explicit ordinary FEN) and discard Variant=Standard.
+        game.headers.setdefault("SetUp", "1")
     node = game
     criticals = _critical_lookup(analysis)
 

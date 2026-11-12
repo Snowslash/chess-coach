@@ -69,6 +69,18 @@ export MAIA2_TARGET_ELO=1500
 
 `LICHESS_TOKEN` is optional for the default public-username import flow.
 
+Web operations resolve input/output paths against the app's `project_root`, not
+the process working directory. Analysis loads and validates the app's selected
+`env_file` once per operation and passes that config snapshot to the pipeline;
+it does not reload `.env.stockfish` from an unrelated current directory.
+Existing environment-over-file precedence is unchanged. Relative Stockfish
+file paths are rooted in `project_root`; bare commands can still use `PATH`.
+API output paths remain project-relative, with symlinks resolved inside that
+root. The derived JSON report is subject to the same confinement check.
+Two operations with different roots/settings can overlap without changing cwd.
+Operations targeting the same output filenames are not serialized: choose
+distinct report paths if you want to retain both results.
+
 ## Local web GUI run
 
 This is the preferred dev-mode path for Windows-native users in this slice.
@@ -169,6 +181,17 @@ Export annotated PGN:
 python -m chess_coach export-annotated-pgn --from reports/lichess_recent.json --out reports/annotated/lichess_recent.pgn --max-games 10 --critical-only
 ```
 
+## PGN starting positions
+
+Parsing, mock/Stockfish analysis and annotated PGN export share one
+standard-chess starting-position contract: use the `FEN` header when present,
+otherwise use the ordinary initial position. As in python-chess, a FEN is
+honoured even when `SetUp` is absent. Move numbers and sides come from the board,
+including Black-to-move setups with a non-default fullmove number. Export keeps
+authored `FEN`, `SetUp` and standard-variant headers (adding `SetUp=1` only if a
+FEN lacks it). Non-standard variants, including Chess960 castling positions,
+are rejected explicitly rather than analysed as ordinary chess.
+
 ## Normal run
 
 After setup:
@@ -213,6 +236,18 @@ These remain local ignored artifacts:
 - generated reports
 - generated annotated PGNs
 - `maia2_models/`
+
+History still changes only when explicitly requested with `analyse --update-state`.
+`save_state` writes the existing schema to a private, same-directory temporary
+file, flushes and fsyncs it, then atomically replaces the destination. Serialization,
+write, sync or replacement errors propagate to the caller; before replacement,
+the previous file stays readable and unchanged. Handled failures clean up the
+temporary file. Reports already produced by analysis may remain if a later
+history save fails; no successful history update is reported in that case.
+This is snapshot publication, not a lock or merge across competing writers.
+Avoid concurrent read/update/save cycles for the same history. An abrupt process
+kill may leave a temporary file; directory-entry durability after power loss is
+not guaranteed. There is no schema migration, database or automatic history update.
 
 ## Runtime boundary
 

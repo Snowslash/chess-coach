@@ -6,7 +6,7 @@ import platform
 import re
 import secrets
 import sys
-from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
@@ -142,18 +142,6 @@ def packaged_vite_dist() -> Path:
     return WEB_DIST_DIR
 
 
-@contextmanager
-def _pushd(path: Path):
-    previous = Path.cwd()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-        os_chdir = __import__("os").chdir
-        os_chdir(path)
-        yield
-    finally:
-        __import__("os").chdir(previous)
-
-
 def _ensure_project_local(project_root: Path, raw_path: str, *, label: str, must_exist: bool = False) -> Path:
     cleaned = str(raw_path or "").strip()
     if not cleaned:
@@ -168,7 +156,7 @@ def _ensure_project_local(project_root: Path, raw_path: str, *, label: str, must
         raise ValueError(f"{label} must stay inside the Chess Coach project folder in this slice.") from exc
     if must_exist and not resolved.exists():
         raise ValueError(f"{label} not found: {candidate}")
-    return candidate
+    return resolved
 
 
 def _serialise_config(env_file: Path) -> dict[str, Any]:
@@ -205,15 +193,14 @@ def _redact_response_strings(value: Any, secrets: tuple[str, ...]) -> Any:
 def _default_import_runner(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     username = payload["username"]
     out_path = _ensure_project_local(project_root, payload["out_path"], label="out_path")
-    with _pushd(project_root):
-        written = fetch_recent_games(
-            username,
-            out_path,
-            max_games=payload["max_games"],
-            perf=payload.get("perf") or None,
-            rated_only=payload.get("rated_only", False),
-            since_days=payload.get("since_days"),
-        )
+    written = fetch_recent_games(
+        username,
+        out_path,
+        max_games=payload["max_games"],
+        perf=payload.get("perf") or None,
+        rated_only=payload.get("rated_only", False),
+        since_days=payload.get("since_days"),
+    ).relative_to(project_root)
     return {
         "ok": True,
         "out_path": str(written),
@@ -222,12 +209,25 @@ def _default_import_runner(project_root: Path, payload: dict[str, Any]) -> dict[
     }
 
 
-def _default_analyse_runner(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+def _default_analyse_runner(project_root: Path, payload: dict[str, Any], *, env_file: Path) -> dict[str, Any]:
     pgn_path = _ensure_project_local(project_root, payload["pgn_path"], label="pgn_path", must_exist=True)
     out_path = _ensure_project_local(project_root, payload["out_path"], label="out_path")
-    with _pushd(project_root):
-        bundle = analyse_pgn(pgn_path, out_path, player=payload["username"], mock=payload.get("mock", False))
-    json_path = default_json_path(out_path)
+    try:
+        config = load_config(env_file) if env_file.exists() else default_config()
+    except ValueError as exc:
+        raise _validation_error(400, {"ok": False, "errors": {"config": "Invalid numeric setting in the selected config file."}}) from exc
+    _raise_with_validation(validate_gui_config(config_as_dict(config)))
+    if config.stockfish_path:
+        engine_path = Path(config.stockfish_path)
+        # Keep bare PATH commands; resolve project-relative binaries without chdir.
+        if not engine_path.is_absolute() and (len(engine_path.parts) > 1 or (project_root / engine_path).exists()):
+            config = replace(config, stockfish_path=str((project_root / engine_path).resolve()))
+    try:
+        bundle = analyse_pgn(pgn_path, out_path, player=payload["username"], mock=payload.get("mock", False), config=config)
+    except ValueError as exc:
+        raise _validation_error(400, {"ok": False, "errors": {"pgn_path": str(exc)}}) from exc
+    json_path = default_json_path(out_path).relative_to(project_root)
+    out_path = out_path.relative_to(project_root)
     return {
         "ok": True,
         "markdown_path": str(out_path),
@@ -241,19 +241,21 @@ def _default_analyse_runner(project_root: Path, payload: dict[str, Any]) -> dict
 def _default_export_runner(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     json_path = _ensure_project_local(project_root, payload["json_path"], label="json_path", must_exist=True)
     out_path = _ensure_project_local(project_root, payload["out_path"], label="out_path")
-    with _pushd(project_root):
-        source = (project_root / json_path).read_text(encoding="utf-8")
-        bundle = AnalysisBundle.model_validate_json(source)
+    source = json_path.read_text(encoding="utf-8")
+    bundle = AnalysisBundle.model_validate_json(source)
+    try:
         rendered = render_annotated_pgn(
             bundle,
             max_games=payload.get("max_games"),
             critical_only=payload.get("critical_only", True),
             include_all_moves=payload.get("include_all_moves", False),
         )
-        exported_games = count_games_to_export(bundle, max_games=payload.get("max_games"))
-        destination = project_root / out_path
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(rendered, encoding="utf-8")
+    except ValueError as exc:
+        raise _validation_error(400, {"ok": False, "errors": {"json_path": str(exc)}}) from exc
+    exported_games = count_games_to_export(bundle, max_games=payload.get("max_games"))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(rendered, encoding="utf-8")
+    out_path = out_path.relative_to(project_root)
     return {
         "ok": True,
         "out_path": str(out_path),
@@ -311,7 +313,7 @@ def create_app(
     app.state.lichess_probe = lichess_probe
     app.state.workflow_runners = {
         "import_lichess": lambda payload: _default_import_runner(root, payload),
-        "analyse": lambda payload: _default_analyse_runner(root, payload),
+        "analyse": lambda payload: _default_analyse_runner(root, payload, env_file=env_path),
         "export_annotated_pgn": lambda payload: _default_export_runner(root, payload),
     }
     if workflow_runners:
@@ -450,7 +452,9 @@ def create_app(
             errors["username"] = "Use a valid Lichess username."
         for field in ("pgn_path", "out_path"):
             try:
-                _ensure_project_local(root, data[field], label=field, must_exist=(field == "pgn_path"))
+                resolved = _ensure_project_local(root, data[field], label=field, must_exist=(field == "pgn_path"))
+                if field == "out_path":
+                    _ensure_project_local(root, str(default_json_path(resolved).relative_to(root)), label=field)
             except ValueError as exc:
                 errors[field] = str(exc)
         if errors:

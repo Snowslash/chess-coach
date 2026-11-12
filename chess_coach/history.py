@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import tempfile
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -69,9 +71,28 @@ def load_state(path: str | Path = DEFAULT_STATE_PATH) -> CoachState:
 
 
 def save_state(state: CoachState, path: str | Path = DEFAULT_STATE_PATH) -> Path:
+    """Publish a complete snapshot; failures leave the previous JSON intact.
+
+    Atomic replacement is not a multi-writer merge/lock: callers still own the
+    read/update/save operation and should not run competing history updates.
+    """
     path = Path(path)
+    serialized = state.model_dump_json(indent=2)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
     return path
 
 
